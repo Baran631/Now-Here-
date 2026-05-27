@@ -153,7 +153,7 @@ exports.getPosts = async (req, res) => {
       mongoFilter.category = category;
     }
 
-    const posts = await Post.find(mongoFilter).select("-image -video -comments").sort({ createdAt: -1 }).limit(40).lean();
+    const posts = await Post.find(mongoFilter).select("-video -comments").sort({ createdAt: -1 }).limit(40).lean();
     return res.json(filterPosts(posts.map((post) => normalizePost(post, req.user?.id, { includeVideo: false })), req));
   } catch (err) {
     console.error("getPosts hata:", err);
