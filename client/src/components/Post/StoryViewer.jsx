@@ -37,6 +37,10 @@ function formatTimeAgo(dateString) {
   return `${Math.floor(diffHr / 24)} gün`;
 }
 
+function getCommentCount(post) {
+  return Number(post?.commentCount) || (post?.comments || []).length || 0;
+}
+
 export default function StoryViewer({
   storyList = [],
   initialStoryIndex = 0,
@@ -348,7 +352,7 @@ export default function StoryViewer({
               aria-label="Yorumları aç"
             >
               <span className="comment-icon">Yorum</span>
-              <small>{(activeStory.comments || []).length}</small>
+              <small>{getCommentCount(activeStory)}</small>
             </button>
           </div>
         </footer>
@@ -356,7 +360,7 @@ export default function StoryViewer({
         {showComments && (
           <div className="story-comments-panel" onClick={(e) => e.stopPropagation()}>
             <header className="story-comments-header">
-              <h3>Yorumlar ({(activeStory.comments || []).length})</h3>
+              <h3>Yorumlar ({getCommentCount(activeStory)})</h3>
               <button type="button" onClick={() => setShowComments(false)} aria-label="Yorumları kapat">×</button>
             </header>
             <div className="story-comments-list">

@@ -54,6 +54,10 @@ function formatDuration(seconds) {
   return minutes > 60 ? `${Math.floor(minutes / 60)} sa ${minutes % 60} dk` : `${minutes} dk`;
 }
 
+function getCommentCount(post) {
+  return Number(post.commentCount) || (post.comments || []).length || 0;
+}
+
 function normalizeText(value = "") {
   return String(value).trim().toLocaleLowerCase("tr-TR");
 }
@@ -707,7 +711,7 @@ export default function MapPage() {
                     <strong>{post.placeName || "Konum"}</strong>
                     <span>{post.description || "Fotografli paylasim"}</span>
                     <small>
-                      {categoryLabels[post.category] || "Genel"} · {moodLabels[post.mood] || "Sakin"} · {post.rating || 0}/5 · {post.likes || 0} begeni · {(post.comments || []).length} yorum
+                      {categoryLabels[post.category] || "Genel"} · {moodLabels[post.mood] || "Sakin"} · {post.rating || 0}/5 · {post.likes || 0} begeni · {getCommentCount(post)} yorum
                     </small>
                     {!!post.tags?.length && (
                       <small className="memory-tags">{post.tags.map((tag) => `#${tag}`).join(" ")}</small>
@@ -731,7 +735,7 @@ export default function MapPage() {
                     <div className="comment-thread">
                       <div className="comment-thread-title">
                         <strong>Yorumlar</strong>
-                        <span>{(post.comments || []).length}</span>
+                        <span>{getCommentCount(post)}</span>
                       </div>
                       {(post.comments || []).length ? (
                         <div className="comment-list">

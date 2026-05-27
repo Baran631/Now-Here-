@@ -26,10 +26,11 @@ function normalizeTags(tags) {
 }
 
 function normalizePost(post, viewerId = "", options = {}) {
-  const { includeVideo = true } = options;
+  const { includeImage = true, includeVideo = true, includeComments = true } = options;
   const source = typeof post.toObject === "function" ? post.toObject() : post;
   const likedBy = source.likedBy || [];
   const reportedBy = source.reportedBy || [];
+  const comments = source.comments || [];
 
   return {
     _id: String(source._id),
@@ -40,9 +41,10 @@ function normalizePost(post, viewerId = "", options = {}) {
     lat: Number(source.lat),
     lng: Number(source.lng),
     placeName: source.placeName || "Konum",
-    image: source.image || "",
+    image: includeImage ? source.image || "" : "",
+    hasImage: Boolean(source.hasImage ?? source.image),
     video: includeVideo ? source.video || "" : "",
-    hasVideo: Boolean(source.video),
+    hasVideo: Boolean(source.hasVideo ?? source.video),
     postType: source.postType || "permanent",
     category: source.category || "genel",
     mood: source.mood || "calm",
@@ -53,10 +55,18 @@ function normalizePost(post, viewerId = "", options = {}) {
     viewerLiked: viewerId ? likedBy.includes(viewerId) : false,
     reportCount: Number(source.reportCount) || reportedBy.length || 0,
     viewerReported: viewerId ? reportedBy.includes(viewerId) : false,
-    comments: source.comments || [],
+    comments: includeComments ? comments : [],
+    commentCount: Number(source.commentCount) || comments.length || 0,
     createdAt: source.createdAt,
     updatedAt: source.updatedAt,
   };
+}
+
+function base64PayloadBytes(value = "") {
+  const data = String(value);
+  const commaIndex = data.indexOf(",");
+  const payload = commaIndex >= 0 ? data.slice(commaIndex + 1) : data;
+  return Math.ceil((payload.length * 3) / 4);
 }
 
 function validatePostInput({ description = "", image = "", video = "", lat, lng, tags = [] }) {
@@ -69,6 +79,14 @@ function validatePostInput({ description = "", image = "", video = "", lat, lng,
 
   if (image && !String(image).startsWith("data:image/")) {
     return "Fotograf verisi gecersiz geldi.";
+  }
+
+  if (image && base64PayloadBytes(image) > 900 * 1024) {
+    return "Fotograf cok buyuk. Lutfen daha kucuk bir gorsel yukle.";
+  }
+
+  if (video && base64PayloadBytes(video) > 6 * 1024 * 1024) {
+    return "Video cok buyuk. Lutfen daha kisa veya daha dusuk boyutlu video yukle.";
   }
 
   if (description.length > 500) {
@@ -129,7 +147,15 @@ exports.getPosts = async (req, res) => {
         return !isExpiredStory && !isSpam;
       });
 
-      const posts = activePosts.map((post) => normalizePost(post, req.user?.id)).sort(sortNewest);
+      const posts = activePosts
+        .map((post) =>
+          normalizePost(post, req.user?.id, {
+            includeImage: false,
+            includeVideo: false,
+            includeComments: false,
+          })
+        )
+        .sort(sortNewest);
       return res.json(filterPosts(posts, req));
     }
 
@@ -157,8 +183,36 @@ exports.getPosts = async (req, res) => {
       mongoFilter.category = category;
     }
 
-    const posts = await Post.find(mongoFilter).select("-video -comments").sort({ createdAt: -1 }).limit(40).lean();
-    return res.json(filterPosts(posts.map((post) => normalizePost(post, req.user?.id, { includeVideo: false })), req));
+    const posts = await Post.aggregate([
+      { $match: mongoFilter },
+      { $sort: { createdAt: -1 } },
+      { $limit: 40 },
+      {
+        $addFields: {
+          commentCount: { $size: { $ifNull: ["$comments", []] } },
+          hasImage: { $gt: ["$image", ""] },
+          hasVideo: { $gt: ["$video", ""] },
+        },
+      },
+      {
+        $project: {
+          image: 0,
+          video: 0,
+          comments: 0,
+        },
+      },
+    ]);
+    return res.json(
+      filterPosts(
+        posts.map((post) =>
+          normalizePost(post, req.user?.id, {
+            includeImage: false,
+            includeVideo: false,
+            includeComments: false,
+          })
+        )
+      )
+    );
   } catch (err) {
     console.error("getPosts hata:", err);
     return res.status(500).json({ message: "Postlar alinamadi" });
