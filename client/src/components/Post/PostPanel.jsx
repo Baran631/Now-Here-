@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import Camera from "./Camera";
 import { searchPlaces } from "../../lib/api";
+import { preparePostImage } from "../../lib/imageTools";
 import "./PostPanel.css";
 
 const categories = [
@@ -97,7 +98,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
     setLocationSuggestions([]);
   }
 
-  function handleFileUpload(event) {
+  async function handleFileUpload(event) {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -109,12 +110,13 @@ export default function PostPanel({ location, onSubmit, onClose }) {
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImage(String(reader.result));
+      try {
+        const preparedImage = await preparePostImage(file);
+        setImage(preparedImage);
         setVideo(""); // Clear video if image is chosen
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        setError(err.message || "Gorsel hazirlanamadi.");
+      }
     } else if (file.type.startsWith("video/")) {
       if (file.size > 25 * 1024 * 1024) {
         setError("Video 25 MB altinda olmali.");
@@ -180,13 +182,19 @@ export default function PostPanel({ location, onSubmit, onClose }) {
     <div className="post-overlay" role="dialog" aria-modal="true" aria-label="Yeni paylasim">
       {showCamera && (
         <Camera
-          onCapture={(captured) => {
+          onCapture={async (captured) => {
             if (captured.startsWith("data:video/")) {
               setVideo(captured);
               setImage("");
             } else {
-              setImage(captured);
-              setVideo("");
+              try {
+                const preparedImage = await preparePostImage(captured);
+                setImage(preparedImage);
+                setVideo("");
+              } catch (err) {
+                setError(err.message || "Gorsel hazirlanamadi.");
+                return;
+              }
             }
             setShowCamera(false);
             setError("");

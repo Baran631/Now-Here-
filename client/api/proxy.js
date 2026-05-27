@@ -1,6 +1,12 @@
+/* global process */
 import { Buffer } from "node:buffer";
 
-const API_BASE_URL = "https://now-here.onrender.com";
+const API_BASE_URL = (
+  process.env.API_BASE_URL ||
+  process.env.VITE_API_BASE_URL ||
+  process.env.VITE_API_URL ||
+  "https://now-here-jvmt.onrender.com"
+).replace(/\/$/, "");
 
 export default async function handler(request, response) {
   const rawPath = Array.isArray(request.query.path) ? request.query.path[0] : request.query.path;

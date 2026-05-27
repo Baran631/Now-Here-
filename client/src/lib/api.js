@@ -256,30 +256,10 @@ export async function fetchPost(postId) {
 }
 
 export async function createPost(post) {
-  try {
-    return await request("/api/posts", {
-      method: "POST",
-      body: JSON.stringify(post),
-    });
-  } catch {
-    const now = new Date().toISOString();
-    const user = getStoredUser() || {};
-    const localPost = {
-      _id: `local-${Date.now()}`,
-      authorId: user.id || "",
-      authorName: user.displayName || user.avatarName || "Gezgin",
-      authorAvatar: user.avatarName || user.displayName || "gezgin",
-      ...post,
-      likes: 0,
-      likedBy: [],
-      comments: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-    const nextPosts = [localPost, ...getLocalPosts()];
-    setLocalPosts(nextPosts);
-    return localPost;
-  }
+  return request("/api/posts", {
+    method: "POST",
+    body: JSON.stringify(post),
+  });
 }
 
 export async function likePost(postId) {
