@@ -129,10 +129,20 @@ exports.getPosts = async (req, res) => {
 
     const hours24Ago = new Date(Date.now() - hours24);
     const mongoFilter = {
-      reportCount: { $lt: 3 },
-      $or: [
-        { postType: { $ne: "story" } },
-        { postType: "story", createdAt: { $gt: hours24Ago } },
+      $and: [
+        {
+          $or: [
+            { reportCount: { $exists: false } },
+            { reportCount: { $lt: 3 } },
+          ],
+        },
+        {
+          $or: [
+            { postType: { $exists: false } },
+            { postType: { $ne: "story" } },
+            { postType: "story", createdAt: { $gt: hours24Ago } },
+          ],
+        },
       ],
     };
 

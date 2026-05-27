@@ -224,6 +224,7 @@ async function createVerifiedUser(data) {
 
 function normalizePost(post) {
   const source = typeof post.toObject === "function" ? post.toObject() : post;
+  const reportedBy = source.reportedBy || [];
   return {
     _id: String(source._id),
     authorId: source.authorId || "",
@@ -237,17 +238,47 @@ function normalizePost(post) {
     rating: Number(source.rating) || 0,
     tags: Array.isArray(source.tags) ? source.tags : [],
     image: source.image || "",
+    video: source.video || "",
+    postType: source.postType || "permanent",
     likes: Number(source.likes) || 0,
     likedBy: source.likedBy || [],
+    reportCount: Number(source.reportCount) || reportedBy.length || 0,
     comments: source.comments || [],
     createdAt: source.createdAt,
     updatedAt: source.updatedAt,
   };
 }
 
+function isActiveProfilePost(post) {
+  const hours24 = 24 * 60 * 60 * 1000;
+  const isExpiredStory =
+    post.postType === "story" &&
+    new Date(post.createdAt).getTime() < Date.now() - hours24;
+  const isHiddenByReports = (Number(post.reportCount) || 0) >= 3;
+  return !isExpiredStory && !isHiddenByReports;
+}
+
 async function getAllPosts() {
-  if (!usesDatabase()) return memoryPosts.map(normalizePost);
-  const posts = await Post.find().sort({ createdAt: -1 });
+  if (!usesDatabase()) return memoryPosts.map(normalizePost).filter(isActiveProfilePost);
+
+  const hours24Ago = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const posts = await Post.find({
+    $and: [
+      {
+        $or: [
+          { reportCount: { $exists: false } },
+          { reportCount: { $lt: 3 } },
+        ],
+      },
+      {
+        $or: [
+          { postType: { $exists: false } },
+          { postType: { $ne: "story" } },
+          { postType: "story", createdAt: { $gt: hours24Ago } },
+        ],
+      },
+    ],
+  }).sort({ createdAt: -1 });
   return posts.map(normalizePost);
 }
 
