@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./StoryViewer.css";
 
 const categoryLabels = {
@@ -45,7 +45,7 @@ export default function StoryViewer({
   onReport,
 }) {
   const [currentIndex, setCurrentIndex] = useState(initialStoryIndex);
-  const [progress, setProgress] = useState(0);
+  const [progressState, setProgressState] = useState({ index: initialStoryIndex, value: 0 });
   const [isMuted, setIsMuted] = useState(true);
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState("");
@@ -57,10 +57,19 @@ export default function StoryViewer({
   const durationRef = useRef(6000); // 6s photo default
 
   const hasVideo = activeStory && !!activeStory.video;
+  const progress = progressState.index === currentIndex ? progressState.value : 0;
+
+  const goNext = useCallback(() => {
+    if (currentIndex < storyList.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+      setProgressState({ index: currentIndex + 1, value: 0 });
+    } else {
+      onClose(); // Exit on last story
+    }
+  }, [currentIndex, onClose, storyList.length]);
 
   // Auto-advance logic
   useEffect(() => {
-    setProgress(0);
     if (progressTimerRef.current) clearInterval(progressTimerRef.current);
 
     if (!activeStory) return;
@@ -88,7 +97,7 @@ export default function StoryViewer({
       }
 
       const percent = Math.min((elapsed / totalDuration) * 100, 100);
-      setProgress(percent);
+      setProgressState({ index: currentIndex, value: percent });
 
       if (percent >= 100) {
         clearInterval(progressTimerRef.current);
@@ -99,19 +108,12 @@ export default function StoryViewer({
     return () => {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     };
-  }, [currentIndex, activeStory]);
-
-  function goNext() {
-    if (currentIndex < storyList.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-    } else {
-      onClose(); // Exit on last story
-    }
-  }
+  }, [activeStory, currentIndex, goNext, hasVideo]);
 
   function goPrev() {
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
+      setProgressState({ index: currentIndex - 1, value: 0 });
     }
   }
 

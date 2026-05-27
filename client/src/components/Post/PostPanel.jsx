@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import Camera from "./Camera";
 import { searchPlaces } from "../../lib/api";
 import "./PostPanel.css";
@@ -54,13 +54,6 @@ export default function PostPanel({ location, onSubmit, onClose }) {
   const [error, setError] = useState("");
 
   const tagPreview = useMemo(() => parseTags(form.tagsText), [form.tagsText]);
-
-  // If initial location changes, update coords
-  useEffect(() => {
-    if (location) {
-      setCurrentCoords(location);
-    }
-  }, [location]);
 
   function updateField(event) {
     const { name, value } = event.target;

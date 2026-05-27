@@ -64,6 +64,9 @@ PORT=5000
 MONGO_URI=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/now-here
 JWT_SECRET=change-this-long-random-secret
 CLIENT_ORIGINS=http://localhost:5173
+BREVO_API_KEY=
+BREVO_FROM_EMAIL=
+BREVO_FROM_NAME=NOW Here
 ```
 
 ## Deploy
@@ -103,6 +106,5 @@ VITE_API_BASE_URL=https://your-render-service.onrender.com
 ```bash
 git add .
 git commit -m "Expand NOW Here UI UX and profile system"
-git push origin main --force
+git push origin main
 ```
-

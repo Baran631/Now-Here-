@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import { CustomZoom, RecenterMap } from "./MapUtils";
@@ -81,13 +81,94 @@ const clickedLocationIcon = L.divIcon({
 });
 
 function MapClickHandler({ onMapClick }) {
-  useMapEvents({
-    click(e) {
-      if (onMapClick) {
-        onMapClick([e.latlng.lat, e.latlng.lng]);
+  const timerRef = useRef(null);
+  const movedRef = useRef(false);
+  const suppressContextMenuRef = useRef(false);
+
+  const clearMouseTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const selectLocation = useCallback((latlng) => {
+    if (onMapClick) {
+      onMapClick([latlng.lat, latlng.lng]);
+    }
+  }, [onMapClick]);
+
+  const map = useMapEvents({
+    mousedown(e) {
+      movedRef.current = false;
+      clearMouseTimer();
+      timerRef.current = setTimeout(() => {
+        if (!movedRef.current) {
+          selectLocation(e.latlng);
+        }
+      }, 2000);
+    },
+    mousemove() {
+      movedRef.current = true;
+      clearMouseTimer();
+    },
+    mouseup() {
+      clearMouseTimer();
+    },
+    contextmenu(e) {
+      if (suppressContextMenuRef.current) {
+        suppressContextMenuRef.current = false;
+        return;
       }
+      selectLocation(e.latlng);
     },
   });
+
+  useEffect(() => {
+    const container = map.getContainer();
+    let touchTimer = null;
+    let touchMoved = false;
+
+    function onTouchStart(e) {
+      touchMoved = false;
+      const touch = e.touches[0];
+      if (!touch) return;
+      touchTimer = setTimeout(() => {
+        if (!touchMoved) {
+          const point = map.containerPointToLatLng(
+            L.point(touch.clientX - container.getBoundingClientRect().left,
+                    touch.clientY - container.getBoundingClientRect().top)
+          );
+          suppressContextMenuRef.current = true;
+          selectLocation(point);
+        }
+      }, 2000);
+    }
+
+    function onTouchMove() {
+      touchMoved = true;
+      if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+    }
+
+    function onTouchEnd() {
+      if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+    }
+
+    container.addEventListener("touchstart", onTouchStart, { passive: true });
+    container.addEventListener("touchmove", onTouchMove, { passive: true });
+    container.addEventListener("touchend", onTouchEnd);
+    container.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchEnd);
+      if (touchTimer) clearTimeout(touchTimer);
+      clearMouseTimer();
+    };
+  }, [clearMouseTimer, map, selectLocation]);
+
   return null;
 }
 
@@ -127,7 +208,7 @@ export default function MapView({
       />
 
       <Marker position={location} icon={userIcon}>
-        <Popup>Bulundugun nokta</Popup>
+        <Popup>Bulunduğun nokta</Popup>
       </Marker>
 
       {clickedCoords && (
@@ -168,7 +249,7 @@ export default function MapView({
           >
             <Popup className="memory-popup" minWidth={280}>
               <div className="popup-content cluster-popup">
-                <strong>{group.items.length} paylasim burada</strong>
+                <strong>{group.items.length} paylaşım burada</strong>
                 {group.items.map((post) => (
                   <button
                     type="button"
@@ -179,7 +260,7 @@ export default function MapView({
                     <span className={`category-dot category-${post.category || "genel"}`} />
                     <span>
                       <b>{post.placeName || "Konum"}</b>
-                      <small>{post.description || "Fotografli paylasim"}</small>
+                      <small>{post.description || "Fotoğraflı paylaşım"}</small>
                     </span>
                   </button>
                 ))}
@@ -240,20 +321,20 @@ function SinglePostMarker({ post, selected, onSelectPost, onRoute, onLike }) {
         <div className="popup-content">
           <span className="popup-category">{categoryLabels[post.category] || "Genel"}</span>
           <strong>{post.placeName || "Konum"}</strong>
-          <small>{post.authorName ? `${post.authorName} tarafindan` : "Paylasim"}</small>
+          <small>{post.authorName ? `${post.authorName} tarafından` : "Paylaşım"}</small>
           <div className="popup-meta-line">
             <span>{moodLabels[post.mood] || "Sakin"}</span>
             <span>{post.rating || 0}/5</span>
           </div>
           {post.description && <p>{post.description}</p>}
           {!!post.tags?.length && <small className="popup-tags">{post.tags.map((tag) => `#${tag}`).join(" ")}</small>}
-          {post.image && <img src={post.image} alt="Paylasim" />}
+          {post.image && <img src={post.image} alt="Paylaşım" />}
           <div className="popup-actions">
             <button type="button" onClick={() => onRoute(post)}>
               Yol tarifi
             </button>
             <button type="button" onClick={() => onLike(post._id)}>
-              {post.viewerLiked ? "Begenildi" : "Begen"} {post.likes || 0}
+              {post.viewerLiked ? "Beğenildi" : "Beğen"} {post.likes || 0}
             </button>
           </div>
         </div>

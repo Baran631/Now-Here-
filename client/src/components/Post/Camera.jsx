@@ -99,6 +99,8 @@ export default function Camera({ onCapture, onClose }) {
 
   useEffect(() => {
     let mounted = true;
+    // Camera access is an external browser API and must be synchronized when mode changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     startCamera(mode, captureMode).then(() => {
       if (!mounted) stopStream();
     });

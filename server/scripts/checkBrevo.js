@@ -5,7 +5,7 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 async function run() {
   const apiKey = process.env.BREVO_API_KEY || "";
-  const fromEmail = process.env.BREVO_FROM_EMAIL || "";
+  const fromEmail = process.env.BREVO_FROM_EMAIL || process.env.BREVO_SENDER_EMAIL || "";
 
   if (!apiKey || apiKey.includes("xxxxxxxx")) {
     throw new Error("BREVO_API_KEY server/.env icinde gercek API key olarak girilmeli.");
