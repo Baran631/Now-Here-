@@ -25,7 +25,8 @@ function normalizeTags(tags) {
   ).slice(0, 6);
 }
 
-function normalizePost(post, viewerId = "") {
+function normalizePost(post, viewerId = "", options = {}) {
+  const { includeVideo = true } = options;
   const source = typeof post.toObject === "function" ? post.toObject() : post;
   const likedBy = source.likedBy || [];
   const reportedBy = source.reportedBy || [];
@@ -40,7 +41,8 @@ function normalizePost(post, viewerId = "") {
     lng: Number(source.lng),
     placeName: source.placeName || "Konum",
     image: source.image || "",
-    video: source.video || "",
+    video: includeVideo ? source.video || "" : "",
+    hasVideo: Boolean(source.video),
     postType: source.postType || "permanent",
     category: source.category || "genel",
     mood: source.mood || "calm",
@@ -151,8 +153,8 @@ exports.getPosts = async (req, res) => {
       mongoFilter.category = category;
     }
 
-    const posts = await Post.find(mongoFilter).sort({ createdAt: -1 });
-    return res.json(filterPosts(posts.map((post) => normalizePost(post, req.user?.id)), req));
+    const posts = await Post.find(mongoFilter).select("-video").sort({ createdAt: -1 }).limit(80);
+    return res.json(filterPosts(posts.map((post) => normalizePost(post, req.user?.id, { includeVideo: false })), req));
   } catch (err) {
     console.error("getPosts hata:", err);
     return res.status(500).json({ message: "Postlar alinamadi" });

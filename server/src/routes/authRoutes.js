@@ -278,7 +278,7 @@ async function getAllPosts() {
         ],
       },
     ],
-  }).sort({ createdAt: -1 });
+  }).select("-video").sort({ createdAt: -1 }).limit(120);
   return posts.map(normalizePost);
 }
 
