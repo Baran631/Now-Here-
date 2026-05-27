@@ -65,6 +65,9 @@ function clearStoredSession() {
 function buildUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (!API_BASE_URL && normalizedPath.startsWith("/api/")) {
+    return `/api/proxy?path=${encodeURIComponent(normalizedPath.slice(5))}`;
+  }
   return `${API_BASE_URL}${normalizedPath}`;
 }
 

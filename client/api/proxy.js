@@ -1,7 +1,15 @@
+import { Buffer } from "node:buffer";
+
 const API_BASE_URL = "https://now-here.onrender.com";
 
 export default async function handler(request, response) {
-  const path = Array.isArray(request.query.path) ? request.query.path.join("/") : request.query.path || "";
+  const rawPath = Array.isArray(request.query.path) ? request.query.path[0] : request.query.path;
+  const path = String(rawPath || "").replace(/^\/+/, "");
+
+  if (!path) {
+    return response.status(400).json({ message: "Proxy path eksik." });
+  }
+
   const query = new URLSearchParams(request.query);
   query.delete("path");
 
@@ -42,8 +50,8 @@ export default async function handler(request, response) {
     });
 
     const upstreamBody = Buffer.from(await upstream.arrayBuffer());
-    response.send(upstreamBody);
+    return response.send(upstreamBody);
   } catch {
-    response.status(502).json({ message: "API proxy upstream sunucusuna ulasamadı." });
+    return response.status(502).json({ message: "API proxy upstream sunucusuna ulasamadı." });
   }
 }
