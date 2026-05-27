@@ -347,9 +347,18 @@ export async function reportPost(postId) {
 }
 
 export async function deletePost(postId) {
-  return request(`/api/posts/${postId}`, {
-    method: "DELETE",
-  });
+  try {
+    return await request(`/api/posts/${postId}`, {
+      method: "DELETE",
+    });
+  } catch (error) {
+    const user = getStoredUser() || {};
+    const target = getLocalPosts().find((post) => post._id === postId);
+    if (!target) throw error;
+    if (target.authorId && user.id && target.authorId !== user.id) throw error;
+    setLocalPosts(getLocalPosts().filter((post) => post._id !== postId));
+    return { ok: true };
+  }
 }
 
 export async function searchPlaces(query) {

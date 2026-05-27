@@ -593,6 +593,15 @@
   box-shadow: 0 12px 26px rgba(255, 200, 87, 0.18);
 }
 
+.memory-actions > button.danger-action {
+  color: #ffffff;
+  background: linear-gradient(135deg, #c73737, #ff6868);
+}
+
+.memory-actions > button.danger-action:hover {
+  box-shadow: 0 12px 26px rgba(255, 104, 104, 0.18);
+}
+
 .comment-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1877,12 +1886,12 @@
   inset: -4px;
   border-radius: 50%;
   padding: 2px;
-  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  background: linear-gradient(45deg, #b7ff4a 0%, #45d6bd 42%, #409cff 72%, #ffc857 100%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   animation: rotate-gradient 3.8s linear infinite;
-  box-shadow: 0 0 10px rgba(220, 39, 67, 0.35);
+  box-shadow: 0 0 10px rgba(69, 214, 189, 0.35);
 }
 
 @keyframes rotate-gradient {

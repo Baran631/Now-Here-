@@ -5,12 +5,12 @@ const categoryLabels = {
   genel: "Genel",
   diger: "Genel",
   kafe: "Kafe",
-  doga: "Doga",
+  doga: "Doğa",
   etkinlik: "Etkinlik",
   spor: "Spor",
   sanat: "Sanat",
   yemek: "Yemek",
-  alisveris: "Alisveris",
+  alisveris: "Alışveriş",
 };
 
 const moodLabels = {
@@ -43,6 +43,8 @@ export default function StoryViewer({
   onLike,
   onComment,
   onReport,
+  onDelete,
+  currentUserId,
 }) {
   const [currentIndex, setCurrentIndex] = useState(initialStoryIndex);
   const [progressState, setProgressState] = useState({ index: initialStoryIndex, value: 0 });
@@ -50,13 +52,16 @@ export default function StoryViewer({
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [confirmReport, setConfirmReport] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   const activeStory = storyList[currentIndex];
   const videoRef = useRef(null);
   const progressTimerRef = useRef(null);
-  const durationRef = useRef(6000); // 6s photo default
+  const durationRef = useRef(6000);
 
   const hasVideo = activeStory && !!activeStory.video;
+  const canDelete = Boolean(activeStory?.authorId && activeStory.authorId === currentUserId);
   const progress = progressState.index === currentIndex ? progressState.value : 0;
 
   const goNext = useCallback(() => {
@@ -64,31 +69,27 @@ export default function StoryViewer({
       setCurrentIndex((prev) => prev + 1);
       setProgressState({ index: currentIndex + 1, value: 0 });
     } else {
-      onClose(); // Exit on last story
+      onClose();
     }
   }, [currentIndex, onClose, storyList.length]);
 
-  // Auto-advance logic
   useEffect(() => {
     if (progressTimerRef.current) clearInterval(progressTimerRef.current);
-
     if (!activeStory) return;
 
-    let totalDuration = hasVideo ? 30000 : 6000; // default 30s video or 6s photo
+    let totalDuration = hasVideo ? 30000 : 6000;
     durationRef.current = totalDuration;
 
-    // Reset video play if exists
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.load();
       videoRef.current.play().catch(() => null);
     }
 
-    const intervalStep = 100; // Update every 100ms
+    const intervalStep = 100;
     let elapsed = 0;
 
     progressTimerRef.current = setInterval(() => {
-      // If video is loaded, we can base progress on video duration!
       if (hasVideo && videoRef.current && videoRef.current.duration) {
         totalDuration = videoRef.current.duration * 1000;
         elapsed = videoRef.current.currentTime * 1000;
@@ -131,7 +132,7 @@ export default function StoryViewer({
 
   function toggleMute(e) {
     e.stopPropagation();
-    setIsMuted(!isMuted);
+    setIsMuted((current) => !current);
   }
 
   function handleCommentSubmit(e) {
@@ -141,9 +142,16 @@ export default function StoryViewer({
     setNewComment("");
   }
 
-  async function triggerReport(e) {
+  function triggerReport(e) {
     e.stopPropagation();
+    setActionError("");
     setConfirmReport(true);
+  }
+
+  function triggerDelete(e) {
+    e.stopPropagation();
+    setActionError("");
+    setConfirmDelete(true);
   }
 
   async function handleConfirmReport(e) {
@@ -151,16 +159,35 @@ export default function StoryViewer({
     if (!activeStory) return;
     try {
       await onReport(activeStory._id);
-      // Move to next post if reported
       if (storyList.length <= 1) {
         onClose();
       } else {
         goNext();
       }
-    } catch (err) {
-      alert(err.message || "Sikayet iletilemedi.");
-    } finally {
       setConfirmReport(false);
+    } catch (err) {
+      setActionError(err.message || "Bildirim gönderilemedi.");
+      return;
+    }
+  }
+
+  async function handleConfirmDelete(e) {
+    e.stopPropagation();
+    if (!activeStory || !onDelete) return;
+    const deletedId = activeStory._id;
+    try {
+      await onDelete(deletedId, { skipConfirm: true });
+      setConfirmDelete(false);
+    } catch (err) {
+      setActionError(err.message || "Paylaşım silinemedi.");
+      return;
+    }
+
+    if (storyList.length <= 1) {
+      onClose();
+    } else if (currentIndex >= storyList.length - 1) {
+      setCurrentIndex((prev) => Math.max(0, prev - 1));
+      setProgressState({ index: Math.max(0, currentIndex - 1), value: 0 });
     }
   }
 
@@ -168,14 +195,10 @@ export default function StoryViewer({
 
   return (
     <div className="story-viewer-overlay" role="dialog" aria-modal="true">
-      {/* Background glass blur */}
       <div className="story-viewer-background" style={{ backgroundImage: `url(${activeStory.image || ""})` }} />
 
-      {/* Main Container */}
       <div className="story-viewer-container">
-        
-        {/* Top Progress Bars */}
-        <div className="story-progress-bars">
+        <div className="story-progress-bars" aria-hidden="true">
           {storyList.map((story, idx) => {
             let width = "0%";
             if (idx < currentIndex) width = "100%";
@@ -189,7 +212,6 @@ export default function StoryViewer({
           })}
         </div>
 
-        {/* Top Header */}
         <header className="story-viewer-header">
           <div className="story-author-info">
             <span className="story-avatar">
@@ -210,8 +232,13 @@ export default function StoryViewer({
 
           <div className="story-header-actions">
             {hasVideo && (
-              <button type="button" className="story-icon-btn mute-btn" onClick={toggleMute} aria-label={isMuted ? "Sesi aç" : "Sesi kıs"}>
-                {isMuted ? "🔇" : "🔊"}
+              <button type="button" className="story-icon-btn" onClick={toggleMute} aria-label={isMuted ? "Sesi aç" : "Sesi kıs"}>
+                {isMuted ? "Sessiz" : "Ses"}
+              </button>
+            )}
+            {canDelete && (
+              <button type="button" className="story-icon-btn delete-btn" onClick={triggerDelete} aria-label="Paylaşımı sil">
+                Sil
               </button>
             )}
             <button
@@ -219,9 +246,9 @@ export default function StoryViewer({
               className={`story-icon-btn report-btn ${activeStory.viewerReported ? "is-reported" : ""}`}
               onClick={triggerReport}
               disabled={activeStory.viewerReported}
-              title="Sahte veya uygunsuz olarak sikayet et"
+              title="Sahte veya uygunsuz olarak şikayet et"
             >
-              🚩
+              Bildir
             </button>
             <button type="button" className="story-close-btn" onClick={onClose} aria-label="Kapat">
               ×
@@ -229,13 +256,10 @@ export default function StoryViewer({
           </div>
         </header>
 
-        {/* Story Media Panel */}
         <div className="story-media-panel">
-          {/* Navigation Click Zones */}
-          <div className="story-tap-zone left-zone" onClick={goPrev} title="Önceki hikaye" />
-          <div className="story-tap-zone right-zone" onClick={goNext} title="Sonraki hikaye" />
+          <button type="button" className="story-tap-zone left-zone" onClick={goPrev} aria-label="Önceki hikaye" />
+          <button type="button" className="story-tap-zone right-zone" onClick={goNext} aria-label="Sonraki hikaye" />
 
-          {/* Media Content */}
           {hasVideo ? (
             <video
               ref={videoRef}
@@ -250,11 +274,10 @@ export default function StoryViewer({
             <img src={activeStory.image || "/placeholder-memory.jpg"} alt="Anı fotoğrafı" className="story-media-element image" />
           )}
 
-          {/* Place Description details card */}
           <div className="story-details-card">
             <div className="story-place-rating">
-              <h3>📍 {activeStory.placeName || "Konum"}</h3>
-              <span className="story-rating-badge">{activeStory.rating || 0}/5 Puan</span>
+              <h3>{activeStory.placeName || "Konum"}</h3>
+              <span className="story-rating-badge">{activeStory.rating || 0}/5</span>
               <span className="story-mood-badge">{moodLabels[activeStory.mood] || "Sakin"}</span>
             </div>
             {activeStory.description && <p className="story-caption">{activeStory.description}</p>}
@@ -268,12 +291,11 @@ export default function StoryViewer({
           </div>
         </div>
 
-        {/* Bottom Interactive Area */}
         <footer className="story-viewer-footer">
           <form className="story-comment-input-form" onSubmit={handleCommentSubmit}>
             <input
               type="text"
-              placeholder="Hızlı yorum gönder..."
+              placeholder="Kısa yorum gönder"
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               onClick={(e) => e.stopPropagation()}
@@ -288,7 +310,7 @@ export default function StoryViewer({
               onClick={handleLikeClick}
               aria-label="Beğen"
             >
-              <span className="heart-icon">{activeStory.viewerLiked ? "❤️" : "🤍"}</span>
+              <span className="heart-icon">♥</span>
               <small>{activeStory.likes || 0}</small>
             </button>
 
@@ -299,19 +321,19 @@ export default function StoryViewer({
                 e.stopPropagation();
                 setShowComments(true);
               }}
+              aria-label="Yorumları aç"
             >
-              <span className="comment-icon">💬</span>
+              <span className="comment-icon">Yorum</span>
               <small>{(activeStory.comments || []).length}</small>
             </button>
           </div>
         </footer>
 
-        {/* Comments Overlay */}
         {showComments && (
           <div className="story-comments-panel" onClick={(e) => e.stopPropagation()}>
             <header className="story-comments-header">
               <h3>Yorumlar ({(activeStory.comments || []).length})</h3>
-              <button type="button" onClick={() => setShowComments(false)}>×</button>
+              <button type="button" onClick={() => setShowComments(false)} aria-label="Yorumları kapat">×</button>
             </header>
             <div className="story-comments-list">
               {(activeStory.comments || []).length ? (
@@ -323,13 +345,13 @@ export default function StoryViewer({
                   </article>
                 ))
               ) : (
-                <p className="story-comment-empty">Henüz yorum yazılmamış. İlk yorumu sen yaz!</p>
+                <p className="story-comment-empty">Henüz yorum yok. İlk yorumu sen yaz.</p>
               )}
             </div>
             <form className="story-comments-panel-footer" onSubmit={handleCommentSubmit}>
               <input
                 type="text"
-                placeholder="Yorum ekle..."
+                placeholder="Yorum ekle"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
               />
@@ -338,15 +360,15 @@ export default function StoryViewer({
           </div>
         )}
 
-        {/* Report Confirmation Modal */}
         {confirmReport && (
           <div className="story-report-modal" onClick={(e) => e.stopPropagation()}>
             <div className="story-report-modal-content">
-              <h4>Paylaşımı Şikayet Et</h4>
-              <p>Bu paylaşımı sahte veya uygunsuz içerik olarak şikayet etmek istediğinizden emin misiniz?</p>
+              <h4>Paylaşımı bildir</h4>
+              <p>Bu paylaşımı sahte veya uygunsuz içerik olarak bildirmek istiyor musun?</p>
+              {actionError && <p className="story-action-error">{actionError}</p>}
               <div className="story-report-modal-actions">
                 <button type="button" className="confirm-btn" onClick={handleConfirmReport}>
-                  Evet, Şikayet Et
+                  Bildir
                 </button>
                 <button type="button" className="cancel-btn" onClick={() => setConfirmReport(false)}>
                   Vazgeç
@@ -356,6 +378,23 @@ export default function StoryViewer({
           </div>
         )}
 
+        {confirmDelete && (
+          <div className="story-report-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="story-report-modal-content delete-modal">
+              <h4>Paylaşımı sil</h4>
+              <p>Bu paylaşım kalıcı olarak silinecek. Devam etmek istiyor musun?</p>
+              {actionError && <p className="story-action-error">{actionError}</p>}
+              <div className="story-report-modal-actions">
+                <button type="button" className="confirm-btn" onClick={handleConfirmDelete}>
+                  Sil
+                </button>
+                <button type="button" className="cancel-btn" onClick={() => setConfirmDelete(false)}>
+                  Vazgeç
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

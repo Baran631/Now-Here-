@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import {
   commentPost,
   createPost,
+  deletePost,
   fetchPosts,
   fetchRoute,
   likePost,
@@ -479,6 +480,30 @@ export default function MapPage() {
     }
   }
 
+  async function handleDeletePost(postId, { skipConfirm = false } = {}) {
+    const post = posts.find((item) => item._id === postId);
+    if (!post || post.authorId !== user?.id) {
+      setNotice("Bu paylaşımı sadece sahibi silebilir.");
+      return;
+    }
+
+    if (!skipConfirm) {
+      const confirmed = window.confirm("Bu paylaşımı kalıcı olarak silmek istiyor musun?");
+      if (!confirmed) return;
+    }
+
+    try {
+      await deletePost(postId);
+      setPosts((current) => current.filter((item) => item._id !== postId));
+      setStoryViewerList((current) => current.filter((item) => item._id !== postId));
+      setSelectedPostId((current) => (current === postId ? null : current));
+      setNotice("Paylaşım silindi.");
+      await refreshProfile().catch(() => null);
+    } catch (err) {
+      setNotice(err.message || "Paylaşım silinemedi.");
+    }
+  }
+
   return (
     <main className="map-page">
       <MapView
@@ -698,6 +723,11 @@ export default function MapPage() {
                     <button type="button" onClick={() => getRoute(post)}>
                       Yol tarifi
                     </button>
+                    {post.authorId === user?.id && (
+                      <button type="button" className="danger-action" onClick={() => handleDeletePost(post._id)}>
+                        Paylaşımı sil
+                      </button>
+                    )}
                     <div className="comment-thread">
                       <div className="comment-thread-title">
                         <strong>Yorumlar</strong>
@@ -804,6 +834,8 @@ export default function MapPage() {
           onLike={handleLike}
           onComment={handleComment}
           onReport={handleReport}
+          onDelete={handleDeletePost}
+          currentUserId={user?.id}
         />
       )}
     </main>
