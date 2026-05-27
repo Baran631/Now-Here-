@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fetchPost } from "../../lib/api";
 import "./StoryViewer.css";
 
 const categoryLabels = {
@@ -54,8 +55,15 @@ export default function StoryViewer({
   const [confirmReport, setConfirmReport] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [postDetails, setPostDetails] = useState({});
 
-  const activeStory = storyList[currentIndex];
+  const baseStory = storyList[currentIndex];
+  const activeStoryId = baseStory?._id || "";
+  const loadedStoryDetails = activeStoryId ? postDetails[activeStoryId] : null;
+  const activeStory = useMemo(
+    () => (baseStory ? { ...baseStory, ...(loadedStoryDetails || {}) } : null),
+    [baseStory, loadedStoryDetails]
+  );
   const videoRef = useRef(null);
   const progressTimerRef = useRef(null);
   const durationRef = useRef(6000);
@@ -72,6 +80,22 @@ export default function StoryViewer({
       onClose();
     }
   }, [currentIndex, onClose, storyList.length]);
+
+  useEffect(() => {
+    if (!activeStoryId || baseStory.image || baseStory.video || loadedStoryDetails) return;
+    let alive = true;
+
+    fetchPost(activeStoryId)
+      .then((post) => {
+        if (!alive || !post) return;
+        setPostDetails((current) => ({ ...current, [activeStoryId]: post }));
+      })
+      .catch(() => null);
+
+    return () => {
+      alive = false;
+    };
+  }, [activeStoryId, baseStory?.image, baseStory?.video, loadedStoryDetails]);
 
   useEffect(() => {
     if (progressTimerRef.current) clearInterval(progressTimerRef.current);

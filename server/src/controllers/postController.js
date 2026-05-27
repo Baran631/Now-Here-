@@ -161,6 +161,23 @@ exports.getPosts = async (req, res) => {
   }
 };
 
+exports.getPost = async (req, res) => {
+  try {
+    if (!usesDatabase()) {
+      const post = memoryPosts.find((item) => item._id === req.params.id);
+      if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+      return res.json(normalizePost(post, req.user?.id));
+    }
+
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+    return res.json(normalizePost(post, req.user?.id));
+  } catch (err) {
+    console.error("getPost hata:", err);
+    return res.status(500).json({ message: "Post alinamadi" });
+  }
+};
+
 exports.createPost = async (req, res) => {
   try {
     const {

@@ -2,6 +2,7 @@ const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const {
   getPosts,
+  getPost,
   createPost,
   likePost,
   commentPost,
@@ -12,6 +13,7 @@ const {
 const router = express.Router();
 
 router.get("/", getPosts);
+router.get("/:id", getPost);
 router.post("/", requireAuth, createPost);
 router.post("/:id/like", requireAuth, likePost);
 router.post("/:id/comments", requireAuth, commentPost);

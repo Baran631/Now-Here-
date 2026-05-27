@@ -251,6 +251,10 @@ export async function fetchPosts(params = {}) {
   }
 }
 
+export async function fetchPost(postId) {
+  return request(`/api/posts/${postId}`);
+}
+
 export async function createPost(post) {
   try {
     return await request("/api/posts", {
