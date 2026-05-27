@@ -1,7 +1,7 @@
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
-  ""
+  "https://now-here-jvmt.onrender.com"
 ).replace(/\/$/, "");
 const LOCAL_POSTS_KEY = "now-here-local-posts";
 const LEGACY_LOCAL_USERS_KEY = "now-here-local-users";

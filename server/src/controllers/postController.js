@@ -67,6 +67,10 @@ function validatePostInput({ description = "", image = "", video = "", lat, lng,
     return "Aciklama, fotograf veya video eklemelisin.";
   }
 
+  if (image && !String(image).startsWith("data:image/")) {
+    return "Fotograf verisi gecersiz geldi.";
+  }
+
   if (description.length > 500) {
     return "Aciklama 500 karakterden uzun olamaz.";
   }

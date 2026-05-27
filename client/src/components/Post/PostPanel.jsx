@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import Camera from "./Camera";
 import { searchPlaces } from "../../lib/api";
-import { preparePostImage } from "../../lib/imageTools";
 import "./PostPanel.css";
 
 const categories = [
@@ -110,13 +109,13 @@ export default function PostPanel({ location, onSubmit, onClose }) {
         return;
       }
 
-      try {
-        const preparedImage = await preparePostImage(file);
-        setImage(preparedImage);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImage(String(reader.result));
         setVideo(""); // Clear video if image is chosen
-      } catch (err) {
-        setError(err.message || "Gorsel hazirlanamadi.");
-      }
+      };
+      reader.onerror = () => setError("Gorsel okunamadi.");
+      reader.readAsDataURL(file);
     } else if (file.type.startsWith("video/")) {
       if (file.size > 25 * 1024 * 1024) {
         setError("Video 25 MB altinda olmali.");
@@ -187,14 +186,8 @@ export default function PostPanel({ location, onSubmit, onClose }) {
               setVideo(captured);
               setImage("");
             } else {
-              try {
-                const preparedImage = await preparePostImage(captured);
-                setImage(preparedImage);
-                setVideo("");
-              } catch (err) {
-                setError(err.message || "Gorsel hazirlanamadi.");
-                return;
-              }
+              setImage(captured);
+              setVideo("");
             }
             setShowCamera(false);
             setError("");
