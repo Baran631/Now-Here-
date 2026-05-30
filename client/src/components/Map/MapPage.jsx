@@ -189,7 +189,7 @@ export default function MapPage() {
       );
     }
 
-    fetchPosts().then((nextPosts) => {
+    fetchPosts({ includeMedia: true }).then((nextPosts) => {
       if (!alive) return;
       setPosts(nextPosts);
       setPostsLoading(false);
@@ -215,7 +215,7 @@ export default function MapPage() {
   async function loadPosts({ silent = false } = {}) {
     if (!silent) setPostsLoading(true);
     try {
-      const nextPosts = await fetchPosts();
+      const nextPosts = await fetchPosts({ includeMedia: true });
       setPosts(nextPosts);
     } finally {
       if (!silent) setPostsLoading(false);
@@ -228,7 +228,7 @@ export default function MapPage() {
       window.clearTimeout(boundsRefreshRef.current);
     }
     boundsRefreshRef.current = window.setTimeout(async () => {
-      const nextPosts = await fetchPosts().catch(() => null);
+      const nextPosts = await fetchPosts({ includeMedia: true }).catch(() => null);
       if (nextPosts) setPosts(nextPosts);
     }, 420);
   }, []);

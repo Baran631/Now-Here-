@@ -241,6 +241,7 @@ export async function recordRouteDistance(meters) {
 export async function fetchPosts(params = {}) {
   try {
     const query = new URLSearchParams();
+    if (params.includeMedia) query.set("includeMedia", "1");
     if (params.category && params.category !== "all") query.set("category", params.category);
     if (params.q) query.set("q", params.q);
     const endpoint = `/api/posts${query.toString() ? `?${query}` : ""}`;

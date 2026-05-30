@@ -137,6 +137,7 @@ function filterPosts(posts, req) {
 exports.getPosts = async (req, res) => {
   try {
     const hours24 = 24 * 60 * 60 * 1000;
+    const includeMedia = ["1", "true", "yes"].includes(String(req.query.includeMedia || "").toLowerCase());
 
     if (!usesDatabase()) {
       const activePosts = memoryPosts.filter((post) => {
@@ -150,8 +151,8 @@ exports.getPosts = async (req, res) => {
       const posts = activePosts
         .map((post) =>
           normalizePost(post, req.user?.id, {
-            includeImage: false,
-            includeVideo: false,
+            includeImage: includeMedia,
+            includeVideo: includeMedia,
             includeComments: false,
           })
         )
@@ -183,6 +184,15 @@ exports.getPosts = async (req, res) => {
       mongoFilter.category = category;
     }
 
+    const projectStage = {
+      comments: 0,
+    };
+
+    if (!includeMedia) {
+      projectStage.image = 0;
+      projectStage.video = 0;
+    }
+
     const posts = await Post.aggregate([
       { $match: mongoFilter },
       { $sort: { createdAt: -1 } },
@@ -195,19 +205,15 @@ exports.getPosts = async (req, res) => {
         },
       },
       {
-        $project: {
-          image: 0,
-          video: 0,
-          comments: 0,
-        },
+        $project: projectStage,
       },
     ]);
     return res.json(
       filterPosts(
         posts.map((post) =>
           normalizePost(post, req.user?.id, {
-            includeImage: false,
-            includeVideo: false,
+            includeImage: includeMedia,
+            includeVideo: includeMedia,
             includeComments: false,
           })
         )
