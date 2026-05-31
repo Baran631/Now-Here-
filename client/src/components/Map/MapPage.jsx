@@ -101,7 +101,6 @@ function haversineMeters(from, to) {
 export default function MapPage() {
   const { user, logout, refreshProfile } = useAuth();
   const geolocationSupported = "geolocation" in navigator;
-  const boundsRefreshRef = useRef(null);
   const routeWatchRef = useRef(null);
   const routeLastPointRef = useRef(null);
   const [location, setLocation] = useState(DEFAULT_LOCATION);
@@ -189,7 +188,7 @@ export default function MapPage() {
       );
     }
 
-    fetchPosts({ includeMedia: true }).then((nextPosts) => {
+    fetchPosts().then((nextPosts) => {
       if (!alive) return;
       setPosts(nextPosts);
       setPostsLoading(false);
@@ -202,9 +201,6 @@ export default function MapPage() {
 
   useEffect(
     () => () => {
-      if (boundsRefreshRef.current) {
-        window.clearTimeout(boundsRefreshRef.current);
-      }
       if (routeWatchRef.current) {
         navigator.geolocation.clearWatch(routeWatchRef.current);
       }
@@ -215,7 +211,7 @@ export default function MapPage() {
   async function loadPosts({ silent = false } = {}) {
     if (!silent) setPostsLoading(true);
     try {
-      const nextPosts = await fetchPosts({ includeMedia: true });
+      const nextPosts = await fetchPosts();
       setPosts(nextPosts);
     } finally {
       if (!silent) setPostsLoading(false);
@@ -224,13 +220,6 @@ export default function MapPage() {
 
   const handleBoundsChange = useCallback((nextBounds) => {
     setMapBounds(nextBounds);
-    if (boundsRefreshRef.current) {
-      window.clearTimeout(boundsRefreshRef.current);
-    }
-    boundsRefreshRef.current = window.setTimeout(async () => {
-      const nextPosts = await fetchPosts({ includeMedia: true }).catch(() => null);
-      if (nextPosts) setPosts(nextPosts);
-    }, 420);
   }, []);
 
   async function handleSearchChange(value) {
