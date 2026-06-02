@@ -87,7 +87,8 @@ async function request(path, options = {}) {
       ...fetchOptions,
       headers,
     });
-  } catch {
+  } catch (err) {
+    if (err?.name === "AbortError") throw err;
     const error = new Error(
       API_BASE_URL
         ? "API sunucusuna ulasilamadi. Render servisinin aktif oldugunu kontrol et."
@@ -244,11 +245,40 @@ export async function fetchPosts(params = {}) {
     if (params.includeMedia) query.set("includeMedia", "1");
     if (params.category && params.category !== "all") query.set("category", params.category);
     if (params.q) query.set("q", params.q);
+    if (params.limit) query.set("limit", String(params.limit));
+    if (params.hours) query.set("hours", String(params.hours));
+    if (params.since) query.set("since", params.since);
+    if (params.before) query.set("before", params.before);
+    if (params.bounds) {
+      ["north", "south", "east", "west"].forEach((key) => {
+        const value = Number(params.bounds[key]);
+        if (Number.isFinite(value)) query.set(key, String(value));
+      });
+    }
     const endpoint = `/api/posts${query.toString() ? `?${query}` : ""}`;
-    const posts = await request(endpoint);
+    const posts = await request(endpoint, params.signal ? { signal: params.signal } : {});
     return Array.isArray(posts) ? posts : [];
-  } catch {
-    return getLocalPosts();
+  } catch (err) {
+    if (err?.name === "AbortError") throw err;
+    const now = Date.now();
+    const hours = Number(params.hours) || 24;
+    const sinceMs = params.since ? new Date(params.since).getTime() : now - hours * 60 * 60 * 1000;
+    const beforeMs = params.before ? new Date(params.before).getTime() : Infinity;
+    const limit = Math.max(1, Math.min(200, Number(params.limit) || 100));
+    return getLocalPosts()
+      .filter((post) => {
+        const createdAt = new Date(post.createdAt || 0).getTime();
+        if (createdAt < sinceMs || createdAt >= beforeMs) return false;
+        if (!params.bounds) return true;
+
+        const lat = Number(post.lat);
+        const lng = Number(post.lng);
+        const { north, south, east, west } = params.bounds;
+        const insideLat = lat <= north && lat >= south;
+        const insideLng = west <= east ? lng >= west && lng <= east : lng >= west || lng <= east;
+        return insideLat && insideLng;
+      })
+      .slice(0, limit);
   }
 }
 

@@ -24,7 +24,6 @@
     linear-gradient(108deg, transparent 0 42%, rgba(183, 255, 74, 0.11) 43% 44%, transparent 45% 100%),
     linear-gradient(18deg, transparent 0 62%, rgba(255, 200, 87, 0.1) 63% 64%, transparent 65% 100%);
   background-size: 420px 420px, 520px 520px;
-  animation: auth-map-drift 20s linear infinite;
   pointer-events: none;
 }
 
@@ -42,7 +41,6 @@
   height: 2px;
   background: linear-gradient(90deg, transparent, rgba(183, 255, 74, 0.5), transparent);
   transform: rotate(-14deg);
-  animation: auth-line-sweep 8s linear infinite;
 }
 
 .auth-motion-lines span:nth-child(1) {
@@ -143,7 +141,6 @@
   background:
     conic-gradient(from 40deg, rgba(183, 255, 74, 0.82), rgba(255, 200, 87, 0.88), rgba(64, 156, 255, 0.74), rgba(183, 255, 74, 0.82));
   box-shadow: 0 24px 54px rgba(0, 0, 0, 0.26);
-  animation: compass-spin 12s linear infinite;
   position: relative;
   z-index: 1;
 }
@@ -192,7 +189,6 @@
   padding: 12px 14px;
   display: grid;
   gap: 4px;
-  animation: auth-feed-float 5s ease-in-out infinite;
 }
 
 .auth-mini-feed strong {
@@ -221,7 +217,6 @@
   height: 4px;
   background: linear-gradient(90deg, #b7ff4a, #ffc857, #409cff, #b7ff4a);
   background-size: 220% 100%;
-  animation: auth-gradient-run 4s linear infinite;
 }
 
 .wide-auth-card {
@@ -642,5 +637,25 @@
 @media (max-width: 380px) {
   .auth-card {
     padding: 20px 15px;
+  }
+}
+
+/* Performance pass: decorative auth motion stays static unless user interacts. */
+.auth-page::before,
+.auth-motion-lines span,
+.auth-compass,
+.auth-mini-feed,
+.auth-card::before {
+  animation: none;
+}
+
+@media (max-width: 760px) {
+  .auth-card,
+  .auth-page::before,
+  .auth-motion-lines span,
+  .auth-compass,
+  .auth-mini-feed {
+    animation: none;
+    transition-duration: 120ms;
   }
 }

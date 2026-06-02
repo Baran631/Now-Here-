@@ -52,3 +52,16 @@ export function preparePostImage(source, options = {}) {
     quality: options.quality || 0.78,
   });
 }
+
+export async function preparePostImageSet(source, options = {}) {
+  const image = await resizeImageSource(source, {
+    maxSize: options.maxSize || 1080,
+    quality: options.quality || 0.72,
+  });
+  const imageThumbnail = await resizeImageSource(source, {
+    maxSize: options.thumbnailMaxSize || 360,
+    quality: options.thumbnailQuality || 0.62,
+  });
+
+  return { image, imageThumbnail };
+}

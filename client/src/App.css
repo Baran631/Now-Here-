@@ -3,8 +3,8 @@
 }
 
 ::selection {
-  color: #06100e;
-  background: #b7ff4a;
+  color: var(--action-primary-text);
+  background: var(--accent-amber);
 }
 
 a,
@@ -25,7 +25,7 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 3px solid rgba(183, 255, 74, 0.7);
+  outline: 3px solid rgba(242, 166, 90, 0.68);
   outline-offset: 3px;
 }
 
@@ -35,11 +35,10 @@ select:focus-visible {
   border-radius: 7px;
   display: inline-block;
   background:
-    radial-gradient(circle at 50% 42%, #07110f 0 23%, transparent 24%),
-    linear-gradient(#ffc857 72%, #ffc857 72%),
-    #b7ff4a;
+    radial-gradient(circle at 50% 42%, var(--bg-main) 0 23%, transparent 24%),
+    linear-gradient(var(--accent-amber) 72%, var(--accent-amber) 72%),
+    var(--accent-violet);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.12);
-  animation: emblem-breathe 2.8s ease-in-out infinite;
 }
 
 ::-webkit-scrollbar {
@@ -52,9 +51,9 @@ select:focus-visible {
 }
 
 ::-webkit-scrollbar-thumb {
-  border: 2px solid rgba(7, 12, 15, 0.8);
+  border: 2px solid rgba(8, 11, 18, 0.8);
   border-radius: 999px;
-  background: linear-gradient(180deg, #b7ff4a, #ffc857);
+  background: linear-gradient(180deg, var(--accent-violet), var(--accent-amber));
 }
 
 @keyframes emblem-breathe {

@@ -5,6 +5,9 @@ const { memoryPosts } = require("../data/memoryStore");
 
 const validCategories = new Set(["genel", "diger", "kafe", "doga", "etkinlik", "spor", "sanat", "yemek", "alisveris"]);
 const validMoods = new Set(["calm", "social", "focus", "energy", "view"]);
+const DEFAULT_POST_LIMIT = 100;
+const MAX_POST_LIMIT = 200;
+const DEFAULT_POST_HOURS = 24;
 
 function usesDatabase() {
   return mongoose.connection.readyState === 1;
@@ -42,7 +45,8 @@ function normalizePost(post, viewerId = "", options = {}) {
     lng: Number(source.lng),
     placeName: source.placeName || "Konum",
     image: includeImage ? source.image || "" : "",
-    hasImage: Boolean(source.hasImage ?? source.image),
+    imageThumbnail: source.imageThumbnail || "",
+    hasImage: Boolean(source.hasImage ?? source.image ?? source.imageThumbnail),
     video: includeVideo ? source.video || "" : "",
     hasVideo: Boolean(source.hasVideo ?? source.video),
     postType: source.postType || "permanent",
@@ -69,7 +73,7 @@ function base64PayloadBytes(value = "") {
   return Math.ceil((payload.length * 3) / 4);
 }
 
-function validatePostInput({ description = "", image = "", video = "", lat, lng, tags = [] }) {
+function validatePostInput({ description = "", image = "", imageThumbnail = "", video = "", lat, lng, tags = [] }) {
   const numericLat = Number(lat);
   const numericLng = Number(lng);
 
@@ -81,8 +85,16 @@ function validatePostInput({ description = "", image = "", video = "", lat, lng,
     return "Fotograf verisi gecersiz geldi.";
   }
 
+  if (imageThumbnail && !String(imageThumbnail).startsWith("data:image/")) {
+    return "Fotograf onizleme verisi gecersiz geldi.";
+  }
+
   if (image && base64PayloadBytes(image) > 900 * 1024) {
     return "Fotograf cok buyuk. Lutfen daha kucuk bir gorsel yukle.";
+  }
+
+  if (imageThumbnail && base64PayloadBytes(imageThumbnail) > 120 * 1024) {
+    return "Fotograf onizlemesi cok buyuk. Lutfen daha kucuk bir gorsel yukle.";
   }
 
   if (video && base64PayloadBytes(video) > 6 * 1024 * 1024) {
@@ -114,9 +126,11 @@ function validatePostInput({ description = "", image = "", video = "", lat, lng,
 function filterPosts(posts, req) {
   const category = String(req.query.category || "").trim();
   const q = String(req.query.q || "").trim().toLowerCase();
+  const bounds = parseBounds(req.query);
 
   return posts.filter((post) => {
     if (category && category !== "all" && post.category !== category) return false;
+    if (bounds && !pointInsideBounds(Number(post.lat), Number(post.lng), bounds)) return false;
     if (!q) return true;
 
     const haystack = [
@@ -134,18 +148,69 @@ function filterPosts(posts, req) {
   });
 }
 
+function parseFiniteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function parseLimit(value) {
+  const limit = Math.floor(Number(value) || DEFAULT_POST_LIMIT);
+  return Math.max(1, Math.min(MAX_POST_LIMIT, limit));
+}
+
+function parseSinceDate(query) {
+  const since = String(query.since || "").trim();
+  const parsedSince = since ? new Date(since) : null;
+  if (parsedSince && !Number.isNaN(parsedSince.getTime())) return parsedSince;
+
+  const hours = Math.max(1, Math.min(24 * 30, Number(query.hours) || DEFAULT_POST_HOURS));
+  return new Date(Date.now() - hours * 60 * 60 * 1000);
+}
+
+function parseBeforeDate(query) {
+  const before = String(query.before || "").trim();
+  const parsedBefore = before ? new Date(before) : null;
+  return parsedBefore && !Number.isNaN(parsedBefore.getTime()) ? parsedBefore : null;
+}
+
+function parseBounds(query) {
+  const north = parseFiniteNumber(query.north);
+  const south = parseFiniteNumber(query.south);
+  const east = parseFiniteNumber(query.east);
+  const west = parseFiniteNumber(query.west);
+
+  if (![north, south, east, west].every((value) => value !== null)) return null;
+  if (north < south || north > 90 || south < -90 || east > 180 || west < -180) return null;
+  return { north, south, east, west };
+}
+
+function pointInsideBounds(lat, lng, bounds) {
+  if (!bounds || !Number.isFinite(lat) || !Number.isFinite(lng)) return true;
+  const insideLat = lat <= bounds.north && lat >= bounds.south;
+  const insideLng =
+    bounds.west <= bounds.east
+      ? lng >= bounds.west && lng <= bounds.east
+      : lng >= bounds.west || lng <= bounds.east;
+  return insideLat && insideLng;
+}
+
 exports.getPosts = async (req, res) => {
   try {
-    const hours24 = 24 * 60 * 60 * 1000;
     const includeMedia = ["1", "true", "yes"].includes(String(req.query.includeMedia || "").toLowerCase());
+    const limit = parseLimit(req.query.limit);
+    const sinceDate = parseSinceDate(req.query);
+    const beforeDate = parseBeforeDate(req.query);
+    const bounds = parseBounds(req.query);
 
     if (!usesDatabase()) {
       const activePosts = memoryPosts.filter((post) => {
+        const createdAt = new Date(post.createdAt);
         const isExpiredStory =
           post.postType === "story" &&
-          new Date(post.createdAt).getTime() < Date.now() - hours24;
+          createdAt.getTime() < Date.now() - DEFAULT_POST_HOURS * 60 * 60 * 1000;
         const isSpam = (post.reportCount || 0) >= 3;
-        return !isExpiredStory && !isSpam;
+        const isInWindow = createdAt >= sinceDate && (!beforeDate || createdAt < beforeDate);
+        return !isExpiredStory && !isSpam && isInWindow;
       });
 
       const posts = activePosts
@@ -157,10 +222,9 @@ exports.getPosts = async (req, res) => {
           })
         )
         .sort(sortNewest);
-      return res.json(filterPosts(posts, req));
+      return res.json(filterPosts(posts, req).slice(0, limit));
     }
 
-    const hours24Ago = new Date(Date.now() - hours24);
     const mongoFilter = {
       $and: [
         {
@@ -170,14 +234,24 @@ exports.getPosts = async (req, res) => {
           ],
         },
         {
-          $or: [
-            { postType: { $exists: false } },
-            { postType: { $ne: "story" } },
-            { postType: "story", createdAt: { $gt: hours24Ago } },
-          ],
+          createdAt: {
+            $gte: sinceDate,
+            ...(beforeDate ? { $lt: beforeDate } : {}),
+          },
         },
       ],
     };
+
+    if (bounds) {
+      mongoFilter.lat = { $gte: bounds.south, $lte: bounds.north };
+      if (bounds.west <= bounds.east) {
+        mongoFilter.lng = { $gte: bounds.west, $lte: bounds.east };
+      } else {
+        mongoFilter.$and.push({
+          $or: [{ lng: { $gte: bounds.west } }, { lng: { $lte: bounds.east } }],
+        });
+      }
+    }
 
     const category = String(req.query.category || "").trim();
     if (category && category !== "all" && validCategories.has(category)) {
@@ -196,7 +270,7 @@ exports.getPosts = async (req, res) => {
     const posts = await Post.aggregate([
       { $match: mongoFilter },
       { $sort: { createdAt: -1 } },
-      { $limit: 40 },
+      { $limit: limit },
       {
         $addFields: {
           commentCount: { $size: { $ifNull: ["$comments", []] } },
@@ -216,7 +290,8 @@ exports.getPosts = async (req, res) => {
             includeVideo: includeMedia,
             includeComments: false,
           })
-        )
+        ),
+        req
       )
     );
   } catch (err) {
@@ -250,6 +325,7 @@ exports.createPost = async (req, res) => {
       lng,
       placeName = "Konum",
       image = "",
+      imageThumbnail = "",
       video = "",
       postType = "permanent",
       category = "genel",
@@ -258,7 +334,7 @@ exports.createPost = async (req, res) => {
       tags = [],
     } = req.body;
 
-    const validationError = validatePostInput({ description, image, video, lat, lng, tags });
+    const validationError = validatePostInput({ description, image, imageThumbnail, video, lat, lng, tags });
     if (validationError) {
       return res.status(400).json({ message: validationError });
     }
@@ -272,6 +348,7 @@ exports.createPost = async (req, res) => {
       lng: Number(lng),
       placeName: String(placeName).trim() || "Konum",
       image,
+      imageThumbnail,
       video,
       postType: ["story", "permanent"].includes(postType) ? postType : "permanent",
       category: validCategories.has(category) ? category : "genel",

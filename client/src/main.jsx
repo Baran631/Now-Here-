@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import "leaflet/dist/leaflet.css";
 import "./index.css";
 import App from "./App.jsx";
+import { initTheme } from "./hooks/useTheme";
 
 function syncAppViewportHeight() {
   const viewportHeight = window.visualViewport?.height || window.innerHeight;
@@ -10,6 +11,7 @@ function syncAppViewportHeight() {
 }
 
 syncAppViewportHeight();
+initTheme();
 window.addEventListener("resize", syncAppViewportHeight);
 window.addEventListener("orientationchange", syncAppViewportHeight);
 window.visualViewport?.addEventListener("resize", syncAppViewportHeight);

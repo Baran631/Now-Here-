@@ -147,7 +147,6 @@
   border-radius: 999px;
   padding: 9px 12px;
   background: rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(12px);
   font-weight: 850;
 }
 
@@ -184,7 +183,6 @@
   display: flex;
   gap: 12px;
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
   padding: 6px 12px;
   border-radius: 999px;
   z-index: 10;
@@ -200,7 +198,7 @@
   border-radius: 999px;
   cursor: pointer;
   font-size: 13px;
-  transition: all 180ms ease;
+  transition: transform 180ms ease, background 180ms ease, color 180ms ease;
 }
 
 .camera-mode-selector .mode-btn.active {
@@ -239,7 +237,7 @@
   inset: 12px;
   background: #ff4a4a;
   border-radius: 50%;
-  transition: all 200ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, background 200ms ease;
 }
 
 .camera-shutter.is-recording:after {
@@ -249,4 +247,30 @@
 
 .camera-mode-indicator {
   letter-spacing: 0.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .red-dot {
+    animation: none;
+  }
+
+  .camera-shutter,
+  .camera-shutter.is-video-mode:after,
+  .camera-mode-selector .mode-btn,
+  .camera-secondary {
+    transition: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .red-dot {
+    animation-duration: 1.6s;
+  }
+
+  .camera-shutter,
+  .camera-shutter.is-video-mode:after,
+  .camera-mode-selector .mode-btn,
+  .camera-secondary {
+    transition-duration: 120ms;
+  }
 }

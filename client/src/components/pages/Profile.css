@@ -21,7 +21,6 @@
     linear-gradient(110deg, transparent 0 44%, rgba(183, 255, 74, 0.1) 45% 46%, transparent 47% 100%),
     linear-gradient(22deg, transparent 0 60%, rgba(255, 200, 87, 0.09) 61% 62%, transparent 63% 100%);
   background-size: 450px 450px, 560px 560px;
-  animation: profile-drift 22s linear infinite;
   pointer-events: none;
 }
 
@@ -40,7 +39,6 @@
   transform: rotate(-16deg);
   background: linear-gradient(90deg, transparent, rgba(183, 255, 74, 0.48), transparent);
   opacity: 0.52;
-  animation: profile-signal 8.5s linear infinite;
 }
 
 .profile-motion span:nth-child(1) {
@@ -155,7 +153,6 @@
   height: 4px;
   background: linear-gradient(90deg, #b7ff4a, #ffc857, #409cff, #b7ff4a);
   background-size: 220% 100%;
-  animation: profile-gradient 4.2s linear infinite;
 }
 
 .profile-hero::after {
@@ -875,5 +872,23 @@
   .profile-wide-field,
   .profile-card-wide {
     grid-column: auto;
+  }
+}
+
+/* Performance pass: profile background accents do not animate continuously. */
+.profile-page::before,
+.profile-motion span,
+.profile-shell::before {
+  animation: none;
+}
+
+@media (max-width: 760px) {
+  .profile-page::before,
+  .profile-motion span,
+  .profile-shell,
+  .profile-shell::before,
+  .profile-edit-panel {
+    animation: none;
+    transition-duration: 120ms;
   }
 }

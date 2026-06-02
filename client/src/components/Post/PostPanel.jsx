@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Camera from "./Camera";
 import { searchPlaces } from "../../lib/api";
-import { preparePostImage } from "../../lib/imageTools";
+import { preparePostImageSet } from "../../lib/imageTools";
 import "./PostPanel.css";
 
 const categories = [
@@ -32,6 +32,7 @@ function parseTags(value) {
 }
 
 export default function PostPanel({ location, onSubmit, onClose }) {
+  const videoObjectUrlRef = useRef("");
   const [form, setForm] = useState({
     description: "",
     placeName: "Bulundugum nokta",
@@ -42,6 +43,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
   });
 
   const [image, setImage] = useState("");
+  const [imageThumbnail, setImageThumbnail] = useState("");
   const [video, setVideo] = useState("");
   const [postType, setPostType] = useState("permanent"); // 'permanent' veya 'story'
 
@@ -55,6 +57,13 @@ export default function PostPanel({ location, onSubmit, onClose }) {
   const [error, setError] = useState("");
 
   const tagPreview = useMemo(() => parseTags(form.tagsText), [form.tagsText]);
+
+  useEffect(() => () => {
+    if (videoObjectUrlRef.current) {
+      URL.revokeObjectURL(videoObjectUrlRef.current);
+      videoObjectUrlRef.current = "";
+    }
+  }, []);
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -111,8 +120,9 @@ export default function PostPanel({ location, onSubmit, onClose }) {
       }
 
       try {
-        const preparedImage = await preparePostImage(file, { maxSize: 1080, quality: 0.72 });
-        setImage(preparedImage);
+        const preparedImage = await preparePostImageSet(file);
+        setImage(preparedImage.image);
+        setImageThumbnail(preparedImage.imageThumbnail);
         setVideo(""); // Clear video if image is chosen
         setError("");
       } catch {
@@ -126,9 +136,22 @@ export default function PostPanel({ location, onSubmit, onClose }) {
 
       // Check duration
       const videoEl = document.createElement("video");
+      const objectUrl = URL.createObjectURL(file);
+      if (videoObjectUrlRef.current) {
+        URL.revokeObjectURL(videoObjectUrlRef.current);
+      }
+      videoObjectUrlRef.current = objectUrl;
+
+      function clearVideoObjectUrl() {
+        if (videoObjectUrlRef.current === objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+          videoObjectUrlRef.current = "";
+        }
+      }
+
       videoEl.preload = "metadata";
       videoEl.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(videoEl.src);
+        clearVideoObjectUrl();
         if (videoEl.duration > 30.5) {
           setError("Video 30 saniyeden uzun olamaz!");
         } else {
@@ -137,11 +160,16 @@ export default function PostPanel({ location, onSubmit, onClose }) {
           reader.onload = () => {
             setVideo(String(reader.result));
             setImage(""); // Clear image if video is chosen
+            setImageThumbnail("");
           };
           reader.readAsDataURL(file);
         }
       };
-      videoEl.src = URL.createObjectURL(file);
+      videoEl.onerror = () => {
+        clearVideoObjectUrl();
+        setError("Video okunamadi.");
+      };
+      videoEl.src = objectUrl;
     } else {
       setError("Lutfen gorsel veya video dosyasi sec.");
     }
@@ -167,6 +195,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
         rating: Number(form.rating) || 0,
         tags: tagPreview,
         image,
+        imageThumbnail,
         video,
         postType,
         lat: currentCoords[0],
@@ -187,10 +216,12 @@ export default function PostPanel({ location, onSubmit, onClose }) {
             if (captured.startsWith("data:video/")) {
               setVideo(captured);
               setImage("");
+              setImageThumbnail("");
             } else {
               try {
-                const preparedImage = await preparePostImage(captured, { maxSize: 1080, quality: 0.72 });
-                setImage(preparedImage);
+                const preparedImage = await preparePostImageSet(captured);
+                setImage(preparedImage.image);
+                setImageThumbnail(preparedImage.imageThumbnail);
                 setVideo("");
                 setError("");
               } catch {
@@ -355,8 +386,11 @@ export default function PostPanel({ location, onSubmit, onClose }) {
           {/* Media Previews */}
           {image && (
             <figure className="image-preview">
-              <img src={image} alt="Paylasim onizlemesi" />
-              <button type="button" onClick={() => setImage("")}>
+              <img src={imageThumbnail || image} alt="Paylasim onizlemesi" loading="lazy" decoding="async" />
+              <button type="button" onClick={() => {
+                setImage("");
+                setImageThumbnail("");
+              }}>
                 Gorseli kaldir
               </button>
             </figure>
@@ -364,7 +398,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
 
           {video && (
             <figure className="image-preview video-preview-container">
-              <video src={video} controls playsInline className="video-preview-element" />
+              <video src={video} controls playsInline preload="metadata" className="video-preview-element" />
               <button type="button" onClick={() => setVideo("")}>
                 Videoyu kaldir
               </button>

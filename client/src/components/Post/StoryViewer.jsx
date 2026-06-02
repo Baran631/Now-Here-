@@ -21,6 +21,8 @@ const moodLabels = {
   energy: "Enerjik",
   view: "Manzara",
 };
+const STORY_DETAIL_PRELOAD_RADIUS = 1;
+const STORY_PROGRESS_STEP_MS = 200;
 
 function formatTimeAgo(dateString) {
   if (!dateString) return "";
@@ -39,6 +41,28 @@ function formatTimeAgo(dateString) {
 
 function getCommentCount(post) {
   return Number(post?.commentCount) || (post?.comments || []).length || 0;
+}
+
+function getStoryCacheIds(storyList, currentIndex) {
+  return storyList
+    .slice(
+      Math.max(0, currentIndex - STORY_DETAIL_PRELOAD_RADIUS),
+      Math.min(storyList.length, currentIndex + STORY_DETAIL_PRELOAD_RADIUS + 1)
+    )
+    .map((story) => story?._id)
+    .filter(Boolean);
+}
+
+function trimStoryDetailsCache(current, allowedIds) {
+  const allowed = new Set(allowedIds);
+  return Object.fromEntries(Object.entries(current).filter(([key]) => allowed.has(key)));
+}
+
+function releaseVideoElement(videoElement) {
+  if (!videoElement) return;
+  videoElement.pause();
+  videoElement.removeAttribute("src");
+  videoElement.load();
 }
 
 export default function StoryViewer({
@@ -60,7 +84,9 @@ export default function StoryViewer({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState("");
   const [postDetails, setPostDetails] = useState({});
+  const postDetailsRef = useRef({});
 
+  const cachedStoryIds = useMemo(() => getStoryCacheIds(storyList, currentIndex), [currentIndex, storyList]);
   const baseStory = storyList[currentIndex];
   const activeStoryId = baseStory?._id || "";
   const loadedStoryDetails = activeStoryId ? postDetails[activeStoryId] : null;
@@ -71,35 +97,137 @@ export default function StoryViewer({
   const videoRef = useRef(null);
   const progressTimerRef = useRef(null);
   const durationRef = useRef(6000);
+  const closeRef = useRef(onClose);
+  const progressValueRef = useRef(0);
+  const touchStartRef = useRef(null);
+
+  useEffect(() => {
+    postDetailsRef.current = postDetails;
+  }, [postDetails]);
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+
+  const cleanupStoryResources = useCallback(() => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+    releaseVideoElement(videoRef.current);
+  }, []);
 
   const hasVideo = activeStory && !!activeStory.video;
   const canDelete = Boolean(activeStory?.authorId && activeStory.authorId === currentUserId);
   const progress = progressState.index === currentIndex ? progressState.value : 0;
+  const progressStories = useMemo(
+    () =>
+      storyList
+        .map((story, idx) => ({ story, idx }))
+        .slice(Math.max(0, currentIndex - 1), Math.min(storyList.length, currentIndex + 2)),
+    [currentIndex, storyList]
+  );
+
+  const handleClose = useCallback(() => {
+    cleanupStoryResources();
+    setPostDetails({});
+    closeRef.current();
+  }, [cleanupStoryResources]);
+
+  useEffect(() => () => {
+    cleanupStoryResources();
+  }, [cleanupStoryResources]);
+
+  const goToIndex = useCallback((nextIndex) => {
+    setShowComments(false);
+    setConfirmReport(false);
+    setConfirmDelete(false);
+    setActionError("");
+    setNewComment("");
+    progressValueRef.current = 0;
+    setPostDetails((current) => trimStoryDetailsCache(current, getStoryCacheIds(storyList, nextIndex)));
+    setCurrentIndex(nextIndex);
+    setProgressState({ index: nextIndex, value: 0 });
+  }, [storyList]);
 
   const goNext = useCallback(() => {
     if (currentIndex < storyList.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-      setProgressState({ index: currentIndex + 1, value: 0 });
+      goToIndex(currentIndex + 1);
     } else {
-      onClose();
+      handleClose();
     }
-  }, [currentIndex, onClose, storyList.length]);
+  }, [currentIndex, goToIndex, handleClose, storyList.length]);
+
+  const goPrev = useCallback(() => {
+    if (currentIndex > 0) {
+      goToIndex(currentIndex - 1);
+    }
+  }, [currentIndex, goToIndex]);
+
+  const handleOverlayClick = useCallback((event) => {
+    if (event.target === event.currentTarget) {
+      handleClose();
+    }
+  }, [handleClose]);
+
+  const handleTouchStart = useCallback((event) => {
+    const touch = event.touches[0];
+    touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  }, []);
+
+  const handleTouchEnd = useCallback((event) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY) * 1.4) return;
+    if (deltaX < 0) {
+      goNext();
+    } else {
+      goPrev();
+    }
+  }, [goNext, goPrev]);
 
   useEffect(() => {
-    if (!activeStoryId || baseStory.image || baseStory.video || loadedStoryDetails) return;
     let alive = true;
+    const idsToLoad = cachedStoryIds.filter((storyId) => {
+      const story = storyList.find((item) => item?._id === storyId);
+      return storyId && story && !story.image && !story.video && !postDetailsRef.current[storyId];
+    });
 
-    fetchPost(activeStoryId)
-      .then((post) => {
-        if (!alive || !post) return;
-        setPostDetails((current) => ({ ...current, [activeStoryId]: post }));
-      })
-      .catch(() => null);
+    idsToLoad.forEach((storyId) => {
+      fetchPost(storyId)
+        .then((post) => {
+          if (!alive || !post) return;
+          setPostDetails((current) => {
+            const allowedIds = new Set(getStoryCacheIds(storyList, currentIndex));
+            if (!allowedIds.has(storyId)) return trimStoryDetailsCache(current, Array.from(allowedIds));
+            return trimStoryDetailsCache({ ...current, [storyId]: post }, Array.from(allowedIds));
+          });
+        })
+        .catch(() => null);
+    });
 
     return () => {
       alive = false;
     };
-  }, [activeStoryId, baseStory?.image, baseStory?.video, loadedStoryDetails]);
+  }, [cachedStoryIds, currentIndex, storyList]);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        handleClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleClose]);
 
   useEffect(() => {
     if (progressTimerRef.current) clearInterval(progressTimerRef.current);
@@ -107,26 +235,31 @@ export default function StoryViewer({
 
     let totalDuration = hasVideo ? 30000 : 6000;
     durationRef.current = totalDuration;
+    const videoElement = videoRef.current;
 
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.load();
-      videoRef.current.play().catch(() => null);
+    if (videoElement) {
+      videoElement.currentTime = 0;
+      videoElement.load();
+      videoElement.play().catch(() => null);
     }
 
-    const intervalStep = 100;
+    const intervalStep = STORY_PROGRESS_STEP_MS;
     let elapsed = 0;
+    progressValueRef.current = 0;
 
     progressTimerRef.current = setInterval(() => {
-      if (hasVideo && videoRef.current && videoRef.current.duration) {
-        totalDuration = videoRef.current.duration * 1000;
-        elapsed = videoRef.current.currentTime * 1000;
+      if (hasVideo && videoElement && videoElement.duration) {
+        totalDuration = videoElement.duration * 1000;
+        elapsed = videoElement.currentTime * 1000;
       } else {
         elapsed += intervalStep;
       }
 
       const percent = Math.min((elapsed / totalDuration) * 100, 100);
-      setProgressState({ index: currentIndex, value: percent });
+      if (percent >= 100 || percent - progressValueRef.current >= 2) {
+        progressValueRef.current = percent;
+        setProgressState({ index: currentIndex, value: percent });
+      }
 
       if (percent >= 100) {
         clearInterval(progressTimerRef.current);
@@ -136,15 +269,11 @@ export default function StoryViewer({
 
     return () => {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+      if (videoElement) {
+        videoElement.pause();
+      }
     };
   }, [activeStory, currentIndex, goNext, hasVideo]);
-
-  function goPrev() {
-    if (currentIndex > 0) {
-      setCurrentIndex((prev) => prev - 1);
-      setProgressState({ index: currentIndex - 1, value: 0 });
-    }
-  }
 
   function handleVideoLoadedMetadata(e) {
     if (e.target.duration) {
@@ -188,7 +317,7 @@ export default function StoryViewer({
     try {
       await onReport(activeStory._id);
       if (storyList.length <= 1) {
-        onClose();
+        handleClose();
       } else {
         goNext();
       }
@@ -212,22 +341,28 @@ export default function StoryViewer({
     }
 
     if (storyList.length <= 1) {
-      onClose();
+      handleClose();
     } else if (currentIndex >= storyList.length - 1) {
-      setCurrentIndex((prev) => Math.max(0, prev - 1));
-      setProgressState({ index: Math.max(0, currentIndex - 1), value: 0 });
+      goToIndex(Math.max(0, currentIndex - 1));
     }
   }
 
   if (!activeStory) return null;
 
   return (
-    <div className="story-viewer-overlay" role="dialog" aria-modal="true">
-      <div className="story-viewer-background" style={{ backgroundImage: `url(${activeStory.image || ""})` }} />
+    <div
+      className="story-viewer-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={handleOverlayClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="story-viewer-background" style={{ backgroundImage: `url(${activeStory.imageThumbnail || ""})` }} />
 
-      <div className="story-viewer-container">
+      <div className="story-viewer-container" onClick={(event) => event.stopPropagation()}>
         <div className="story-progress-bars" aria-hidden="true">
-          {storyList.map((story, idx) => {
+          {progressStories.map(({ story, idx }) => {
             let width = "0%";
             if (idx < currentIndex) width = "100%";
             if (idx === currentIndex) width = `${progress}%`;
@@ -244,7 +379,7 @@ export default function StoryViewer({
           <div className="story-author-info">
             <span className="story-avatar">
               {activeStory.authorAvatar ? (
-                <img src={`data:image/svg+xml;utf8,${activeStory.authorAvatar}`} alt="" />
+                <img src={`data:image/svg+xml;utf8,${activeStory.authorAvatar}`} alt="" loading="lazy" decoding="async" />
               ) : (
                 <span>{activeStory.authorName?.[0]?.toUpperCase() || "G"}</span>
               )}
@@ -278,7 +413,7 @@ export default function StoryViewer({
             >
               Bildir
             </button>
-            <button type="button" className="story-close-btn" onClick={onClose} aria-label="Kapat">
+            <button type="button" className="story-close-btn" onClick={handleClose} aria-label="Kapat">
               ×
             </button>
           </div>
@@ -295,11 +430,18 @@ export default function StoryViewer({
               autoPlay
               muted={isMuted}
               playsInline
+              preload="metadata"
               onLoadedMetadata={handleVideoLoadedMetadata}
               className="story-media-element video"
             />
           ) : (
-            <img src={activeStory.image || "/placeholder-memory.jpg"} alt="Anı fotoğrafı" className="story-media-element image" />
+            <img
+              src={activeStory.image || activeStory.imageThumbnail || "/placeholder-memory.jpg"}
+              alt="Anı fotoğrafı"
+              loading="lazy"
+              decoding="async"
+              className="story-media-element image"
+            />
           )}
 
           <div className="story-details-card">

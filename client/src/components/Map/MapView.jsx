@@ -1,47 +1,45 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { MapContainer, Marker, Polyline, Popup, TileLayer, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { CustomZoom, RecenterMap } from "./MapUtils";
 
-const categoryLabels = {
-  genel: "Genel",
-  diger: "Genel",
-  kafe: "Kafe",
-  doga: "Doga",
-  etkinlik: "Etkinlik",
-  spor: "Spor",
-  sanat: "Sanat",
-  yemek: "Yemek",
-  alisveris: "Alisveris",
-};
-
-const moodLabels = {
-  calm: "Sakin",
-  social: "Sosyal",
-  focus: "Odak",
-  energy: "Enerjik",
-  view: "Manzara",
-};
+const markerIconCache = new Map();
+const clusterIconCache = new Map();
+const CLUSTER_BREAK_ZOOM = 16;
+const HEATMAP_MAX_ZOOM = 15;
+const HEATMAP_GRID_SIZE = 34;
 
 function createMarkerIcon(category = "genel", selected = false, postType = "permanent") {
+  const cacheKey = `${category}-${selected ? "selected" : "idle"}-${postType}`;
+  const cachedIcon = markerIconCache.get(cacheKey);
+  if (cachedIcon) return cachedIcon;
+
   const isStory = postType === "story";
-  return L.divIcon({
+  const icon = L.divIcon({
     className: `memory-marker ${selected ? "is-selected" : ""} ${isStory ? "is-story" : ""}`,
     html: `<span class="memory-marker-dot category-${category}"></span>`,
     iconSize: [36, 36],
     iconAnchor: [18, 18],
     popupAnchor: [0, -18],
   });
+  markerIconCache.set(cacheKey, icon);
+  return icon;
 }
 
 function createClusterIcon(count) {
-  return L.divIcon({
+  const cacheKey = count > 99 ? "99+" : String(count);
+  const cachedIcon = clusterIconCache.get(cacheKey);
+  if (cachedIcon) return cachedIcon;
+
+  const icon = L.divIcon({
     className: "cluster-marker",
-    html: `<span>${count}</span>`,
+    html: `<span>${cacheKey}</span>`,
     iconSize: [42, 42],
     iconAnchor: [21, 21],
     popupAnchor: [0, -20],
   });
+  clusterIconCache.set(cacheKey, icon);
+  return icon;
 }
 
 const userIcon = L.divIcon({
@@ -51,13 +49,23 @@ const userIcon = L.divIcon({
   iconAnchor: [17, 17],
 });
 
-function groupPosts(posts) {
+function getClusterCellSize(zoom) {
+  if (zoom >= CLUSTER_BREAK_ZOOM) return 0;
+  return 360 / (2 ** Math.max(1, zoom) * 8);
+}
+
+function groupPosts(posts, zoom) {
   const groups = new Map();
+  const cellSize = getClusterCellSize(zoom);
 
   posts
     .filter((post) => Number.isFinite(Number(post.lat)) && Number.isFinite(Number(post.lng)))
     .forEach((post) => {
-      const key = `${Number(post.lat).toFixed(4)},${Number(post.lng).toFixed(4)}`;
+      const lat = Number(post.lat);
+      const lng = Number(post.lng);
+      const key = cellSize
+        ? `${Math.floor(lat / cellSize)},${Math.floor(lng / cellSize)}`
+        : `${post._id}-${lat.toFixed(6)},${lng.toFixed(6)}`;
       if (!groups.has(key)) {
         groups.set(key, []);
       }
@@ -180,15 +188,48 @@ export default function MapView({
   selectedPostId,
   onBoundsChange,
   onSelectPost,
-  onRoute,
-  onLike,
   clickedCoords,
   clickedAddress,
   onMapClick,
   onClearClickedCoords,
   onShareHere,
+  heatmapEnabled = false,
 }) {
-  const groupedPosts = useMemo(() => groupPosts(posts), [posts]);
+  const [currentZoom, setCurrentZoom] = useState(13);
+  const groupedPosts = useMemo(() => groupPosts(posts, currentZoom), [currentZoom, posts]);
+  const heatmapPoints = useMemo(
+    () =>
+      posts
+        .map((post) => ({
+          id: post._id,
+          lat: Number(post.lat),
+          lng: Number(post.lng),
+          weight: Math.max(0.35, Math.min(1, (Number(post.rating) || 3) / 5)),
+        }))
+        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)),
+    [posts]
+  );
+  const markerList = useMemo(
+    () =>
+      groupedPosts.map((group) =>
+        group.items.length > 1 ? (
+          <ClusterPostMarker
+            key={`${group.center[0]}-${group.center[1]}-${group.items.length}`}
+            center={group.center}
+            items={group.items}
+            onSelectPost={onSelectPost}
+          />
+        ) : (
+          <SinglePostMarker
+            key={group.items[0]._id}
+            post={group.items[0]}
+            selected={selectedPostId === group.items[0]._id}
+            onSelectPost={onSelectPost}
+          />
+        )
+      ),
+    [groupedPosts, onSelectPost, selectedPostId]
+  );
 
   return (
     <MapContainer
@@ -199,12 +240,17 @@ export default function MapView({
       preferCanvas
     >
       <CustomZoom />
-      <BoundsReporter onBoundsChange={onBoundsChange} />
+      <BoundsReporter onBoundsChange={onBoundsChange} onZoomChange={setCurrentZoom} />
       <MapClickHandler onMapClick={onMapClick} />
       <RecenterMap location={focusLocation || location} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      <HeatmapLayer
+        enabled={heatmapEnabled && currentZoom <= HEATMAP_MAX_ZOOM}
+        points={heatmapPoints}
+        zoom={currentZoom}
       />
 
       <Marker position={location} icon={userIcon}>
@@ -240,60 +286,119 @@ export default function MapView({
         />
       )}
 
-      {groupedPosts.map((group) =>
-        group.items.length > 1 ? (
-          <Marker
-            key={`${group.center[0]}-${group.center[1]}-${group.items.length}`}
-            position={group.center}
-            icon={createClusterIcon(group.items.length)}
-          >
-            <Popup className="memory-popup" minWidth={280}>
-              <div className="popup-content cluster-popup">
-                <strong>{group.items.length} paylaşım burada</strong>
-                {group.items.map((post) => (
-                  <button
-                    type="button"
-                    key={post._id}
-                    onClick={() => onSelectPost(post)}
-                    className="cluster-popup-item"
-                  >
-                    <span className={`category-dot category-${post.category || "genel"}`} />
-                    <span>
-                      <b>{post.placeName || "Konum"}</b>
-                      <small>{post.description || "Fotoğraflı paylaşım"}</small>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </Popup>
-          </Marker>
-        ) : (
-          <SinglePostMarker
-            key={group.items[0]._id}
-            post={group.items[0]}
-            selected={selectedPostId === group.items[0]._id}
-            onSelectPost={onSelectPost}
-            onRoute={onRoute}
-            onLike={onLike}
-          />
-        )
-      )}
+      {markerList}
     </MapContainer>
   );
 }
 
-function BoundsReporter({ onBoundsChange }) {
+function HeatmapLayer({ enabled, points, zoom }) {
+  const map = useMap();
+  const canvasRef = useRef(null);
+  const frameRef = useRef(null);
+
+  const drawHeatmap = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !enabled || points.length < 2) return;
+
+    const size = map.getSize();
+    const topLeft = map.containerPointToLayerPoint([0, 0]);
+    L.DomUtil.setPosition(canvas, topLeft);
+
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(size.x * pixelRatio));
+    canvas.height = Math.max(1, Math.round(size.y * pixelRatio));
+    canvas.style.width = `${size.x}px`;
+    canvas.style.height = `${size.y}px`;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.clearRect(0, 0, size.x, size.y);
+    context.globalCompositeOperation = "lighter";
+
+    const cells = new Map();
+    points.forEach((point) => {
+      const layerPoint = map.latLngToLayerPoint([point.lat, point.lng]).subtract(topLeft);
+      if (layerPoint.x < -80 || layerPoint.y < -80 || layerPoint.x > size.x + 80 || layerPoint.y > size.y + 80) {
+        return;
+      }
+
+      const key = `${Math.round(layerPoint.x / HEATMAP_GRID_SIZE)},${Math.round(layerPoint.y / HEATMAP_GRID_SIZE)}`;
+      const current = cells.get(key) || { x: 0, y: 0, weight: 0, count: 0 };
+      current.x += layerPoint.x;
+      current.y += layerPoint.y;
+      current.weight += point.weight;
+      current.count += 1;
+      cells.set(key, current);
+    });
+
+    const radius = zoom <= 11 ? 58 : zoom <= 13 ? 46 : 34;
+    Array.from(cells.values()).forEach((cell) => {
+      const x = cell.x / cell.count;
+      const y = cell.y / cell.count;
+      const intensity = Math.min(1, 0.28 + cell.weight / 4);
+      const auraRadius = radius + Math.min(18, cell.count * 2);
+      const gradient = context.createRadialGradient(x, y, 0, x, y, auraRadius);
+      gradient.addColorStop(0, `rgba(242, 166, 90, ${0.2 * intensity})`);
+      gradient.addColorStop(0.38, `rgba(139, 92, 246, ${0.13 * intensity})`);
+      gradient.addColorStop(0.74, `rgba(28, 35, 60, ${0.08 * intensity})`);
+      gradient.addColorStop(1, "rgba(8, 11, 18, 0)");
+
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.arc(x, y, auraRadius, 0, Math.PI * 2);
+      context.fill();
+    });
+
+    context.globalCompositeOperation = "source-over";
+  }, [enabled, map, points, zoom]);
+
+  const scheduleDraw = useCallback(() => {
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    frameRef.current = requestAnimationFrame(drawHeatmap);
+  }, [drawHeatmap]);
+
+  useEffect(() => {
+    if (!enabled || points.length < 2) return undefined;
+
+    const canvas = document.createElement("canvas");
+    canvas.className = "nh-heatmap-canvas";
+    canvasRef.current = canvas;
+    map.getPanes().overlayPane.appendChild(canvas);
+    scheduleDraw();
+
+    map.on("moveend zoomend resize", scheduleDraw);
+    return () => {
+      map.off("moveend zoomend resize", scheduleDraw);
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+      canvas.remove();
+      canvasRef.current = null;
+    };
+  }, [enabled, map, points.length, scheduleDraw]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    scheduleDraw();
+  }, [enabled, points, scheduleDraw, zoom]);
+
+  return null;
+}
+
+function BoundsReporter({ onBoundsChange, onZoomChange }) {
   const reportBounds = useCallback((map) => {
     if (!onBoundsChange) return;
     const bounds = map.getBounds();
+    const zoom = map.getZoom();
+    onZoomChange?.(zoom);
     onBoundsChange({
       north: bounds.getNorth(),
       south: bounds.getSouth(),
       east: bounds.getEast(),
       west: bounds.getWest(),
-      zoom: map.getZoom(),
+      zoom,
     });
-  }, [onBoundsChange]);
+  }, [onBoundsChange, onZoomChange]);
 
   const map = useMapEvents({
     moveend: () => reportBounds(map),
@@ -308,37 +413,69 @@ function BoundsReporter({ onBoundsChange }) {
   return null;
 }
 
-function SinglePostMarker({ post, selected, onSelectPost, onRoute, onLike }) {
+const ClusterPostMarker = memo(function ClusterPostMarker({ center, items, onSelectPost }) {
+  const icon = useMemo(() => createClusterIcon(items.length), [items.length]);
+
   return (
-    <Marker
-      position={[Number(post.lat), Number(post.lng)]}
-      icon={createMarkerIcon(post.category, selected, post.postType)}
-      eventHandlers={{
-        click: () => onSelectPost(post),
-      }}
-    >
-      <Popup className="memory-popup" minWidth={250}>
-        <div className="popup-content">
-          <span className="popup-category">{categoryLabels[post.category] || "Genel"}</span>
-          <strong>{post.placeName || "Konum"}</strong>
-          <small>{post.authorName ? `${post.authorName} tarafından` : "Paylaşım"}</small>
-          <div className="popup-meta-line">
-            <span>{moodLabels[post.mood] || "Sakin"}</span>
-            <span>{post.rating || 0}/5</span>
-          </div>
-          {post.description && <p>{post.description}</p>}
-          {!!post.tags?.length && <small className="popup-tags">{post.tags.map((tag) => `#${tag}`).join(" ")}</small>}
-          {post.image && <img src={post.image} alt="Paylaşım" />}
-          <div className="popup-actions">
-            <button type="button" onClick={() => onRoute(post)}>
-              Yol tarifi
-            </button>
-            <button type="button" onClick={() => onLike(post._id)}>
-              {post.viewerLiked ? "Beğenildi" : "Beğen"} {post.likes || 0}
-            </button>
-          </div>
+    <Marker position={center} icon={icon}>
+      <Popup className="memory-popup" minWidth={240}>
+        <div className="popup-content cluster-popup">
+          <strong>{items.length} paylaşım burada</strong>
+          {items.slice(0, 8).map((post) => (
+            <ClusterPopupItem key={post._id} post={post} onSelectPost={onSelectPost} />
+          ))}
         </div>
       </Popup>
     </Marker>
+  );
+});
+
+const ClusterPopupItem = memo(function ClusterPopupItem({ post, onSelectPost }) {
+  const handleClick = useCallback(() => {
+    onSelectPost(post);
+  }, [onSelectPost, post]);
+
+  return (
+    <button type="button" onClick={handleClick} className="cluster-popup-item">
+      <span className={`category-dot category-${post.category || "genel"}`} />
+      <span>
+        <b>{post.placeName || "Konum"}</b>
+        <small>{post.description || "Paylaşım"}</small>
+      </span>
+    </button>
+  );
+});
+
+const SinglePostMarker = memo(function SinglePostMarker({ post, selected, onSelectPost }) {
+  const position = useMemo(() => [Number(post.lat), Number(post.lng)], [post.lat, post.lng]);
+  const icon = useMemo(
+    () => createMarkerIcon(post.category, selected, post.postType),
+    [post.category, post.postType, selected]
+  );
+  const handleClick = useCallback(() => {
+    onSelectPost(post);
+  }, [onSelectPost, post]);
+  const eventHandlers = useMemo(() => ({ click: handleClick }), [handleClick]);
+
+  return (
+    <Marker
+      position={position}
+      icon={icon}
+      eventHandlers={eventHandlers}
+      keyboard={false}
+      riseOnHover
+    />
+  );
+}, areSingleMarkerPropsEqual);
+
+function areSingleMarkerPropsEqual(prev, next) {
+  return (
+    prev.selected === next.selected &&
+    prev.onSelectPost === next.onSelectPost &&
+    prev.post._id === next.post._id &&
+    prev.post.lat === next.post.lat &&
+    prev.post.lng === next.post.lng &&
+    prev.post.category === next.post.category &&
+    prev.post.postType === next.post.postType
   );
 }

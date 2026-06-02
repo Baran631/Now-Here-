@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import useTheme from "../../hooks/useTheme";
 import {
   commentPost,
   createPost,
@@ -42,6 +43,10 @@ const moodLabels = {
   view: "Manzara",
 };
 const MIN_TRACKED_ROUTE_METERS = 25;
+const BOUNDS_EPSILON = 0.00005;
+const BOUNDS_DEBOUNCE_MS = 180;
+const POSTS_INITIAL_LIMIT = 100;
+const POSTS_WINDOW_HOURS = 24;
 
 function formatDistance(meters) {
   if (!meters) return "";
@@ -98,11 +103,77 @@ function haversineMeters(from, to) {
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function boundsAreClose(a, b) {
+  if (!a || !b) return false;
+  return ["north", "south", "east", "west"].every(
+    (key) => Math.abs(Number(a[key]) - Number(b[key])) < BOUNDS_EPSILON
+  ) && Number(a.zoom) === Number(b.zoom);
+}
+
+function stripPostMediaForList(post) {
+  if (!post) return post;
+  return {
+    ...post,
+    image: "",
+    video: "",
+  };
+}
+
+function normalizePostList(posts = []) {
+  const seen = new Set();
+  return posts
+    .filter((post) => {
+      if (!post?._id || seen.has(post._id)) return false;
+      seen.add(post._id);
+      return true;
+    })
+    .map(stripPostMediaForList)
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+}
+
+function postsAreSame(a = [], b = []) {
+  if (a.length !== b.length) return false;
+  return a.every((post, index) => {
+    const next = b[index];
+    return (
+      post._id === next?._id &&
+      post.updatedAt === next.updatedAt &&
+      post.likes === next.likes &&
+      post.commentCount === next.commentCount &&
+      post.reportCount === next.reportCount &&
+      post.viewerLiked === next.viewerLiked
+    );
+  });
+}
+
+function mergeUniquePosts(current = [], incoming = []) {
+  const byId = new Map();
+  [...incoming, ...current].forEach((post) => {
+    if (!post?._id || byId.has(post._id)) return;
+    byId.set(post._id, post);
+  });
+  return normalizePostList([...byId.values()]);
+}
+
+function postQueryForBounds(bounds) {
+  return {
+    hours: POSTS_WINDOW_HOURS,
+    limit: POSTS_INITIAL_LIMIT,
+    ...(bounds ? { bounds } : {}),
+  };
+}
+
 export default function MapPage() {
   const { user, logout, refreshProfile } = useAuth();
+  const { isNight, toggleTheme } = useTheme();
   const geolocationSupported = "geolocation" in navigator;
   const routeWatchRef = useRef(null);
   const routeLastPointRef = useRef(null);
+  const mapBoundsRef = useRef(null);
+  const pendingMapBoundsRef = useRef(null);
+  const boundsDebounceRef = useRef(null);
+  const postsFetchAbortRef = useRef(null);
+  const lastPostQueryKeyRef = useRef("");
   const [location, setLocation] = useState(DEFAULT_LOCATION);
   const [focusLocation, setFocusLocation] = useState(DEFAULT_LOCATION);
   const [locationStatus, setLocationStatus] = useState(
@@ -137,6 +208,7 @@ export default function MapPage() {
   const [isStoryOpen, setIsStoryOpen] = useState(false);
   const [storyViewerIndex, setStoryViewerIndex] = useState(0);
   const [storyViewerList, setStoryViewerList] = useState([]);
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
 
   const sortedPosts = useMemo(
     () =>
@@ -188,12 +260,6 @@ export default function MapPage() {
       );
     }
 
-    fetchPosts().then((nextPosts) => {
-      if (!alive) return;
-      setPosts(nextPosts);
-      setPostsLoading(false);
-    });
-
     return () => {
       alive = false;
     };
@@ -204,23 +270,90 @@ export default function MapPage() {
       if (routeWatchRef.current) {
         navigator.geolocation.clearWatch(routeWatchRef.current);
       }
+      if (boundsDebounceRef.current) {
+        clearTimeout(boundsDebounceRef.current);
+      }
+      if (postsFetchAbortRef.current) {
+        postsFetchAbortRef.current.abort();
+      }
     },
     []
   );
 
-  async function loadPosts({ silent = false } = {}) {
+  const loadPosts = useCallback(async ({ silent = false, bounds = mapBoundsRef.current, force = false } = {}) => {
+    const query = postQueryForBounds(bounds);
+    const queryKey = JSON.stringify(query);
+    if (!force && silent && lastPostQueryKeyRef.current === queryKey) return;
+
+    lastPostQueryKeyRef.current = queryKey;
+    if (postsFetchAbortRef.current) {
+      postsFetchAbortRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    postsFetchAbortRef.current = controller;
     if (!silent) setPostsLoading(true);
     try {
-      const nextPosts = await fetchPosts();
-      setPosts(nextPosts);
+      const nextPosts = normalizePostList(await fetchPosts({ ...query, signal: controller.signal }));
+      if (controller.signal.aborted) return;
+      setPosts((current) => {
+        const merged = mergeUniquePosts(current, nextPosts).slice(0, POSTS_INITIAL_LIMIT);
+        return postsAreSame(current, merged) ? current : merged;
+      });
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        setNotice(err.message || "Paylasimlar yuklenemedi.");
+      }
     } finally {
-      if (!silent) setPostsLoading(false);
+      if (postsFetchAbortRef.current === controller) {
+        postsFetchAbortRef.current = null;
+      }
+      if (!silent && !controller.signal.aborted) setPostsLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadPosts({ silent: false, bounds: mapBounds, force: true });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadPosts, mapBounds]);
 
   const handleBoundsChange = useCallback((nextBounds) => {
-    setMapBounds(nextBounds);
+    if (boundsAreClose(mapBoundsRef.current, nextBounds) || boundsAreClose(pendingMapBoundsRef.current, nextBounds)) {
+      return;
+    }
+
+    if (!mapBoundsRef.current) {
+      mapBoundsRef.current = nextBounds;
+      setMapBounds(nextBounds);
+      return;
+    }
+
+    pendingMapBoundsRef.current = nextBounds;
+    if (boundsDebounceRef.current) {
+      clearTimeout(boundsDebounceRef.current);
+    }
+
+    boundsDebounceRef.current = setTimeout(() => {
+      const debouncedBounds = pendingMapBoundsRef.current;
+      pendingMapBoundsRef.current = null;
+      boundsDebounceRef.current = null;
+
+      if (!debouncedBounds || boundsAreClose(mapBoundsRef.current, debouncedBounds)) return;
+      mapBoundsRef.current = debouncedBounds;
+      setMapBounds(debouncedBounds);
+    }, BOUNDS_DEBOUNCE_MS);
   }, []);
+
+  const openStoryAtPost = useCallback((post) => {
+    setSelectedPostId(post._id);
+    setFocusLocation([post.lat, post.lng]);
+    const idx = visiblePosts.findIndex((p) => p._id === post._id);
+    setStoryViewerIndex(idx >= 0 ? idx : 0);
+    setStoryViewerList(visiblePosts);
+    setIsStoryOpen(true);
+  }, [visiblePosts]);
 
   async function handleSearchChange(value) {
     setSearch(value);
@@ -429,7 +562,7 @@ export default function MapPage() {
 
   async function handleCreatePost(postData) {
     const newPost = await createPost(postData);
-    setPosts((current) => [newPost, ...current]);
+    setPosts((current) => mergeUniquePosts([stripPostMediaForList(newPost)], current).slice(0, POSTS_INITIAL_LIMIT));
     setSelectedPostId(newPost._id);
     setFocusLocation([newPost.lat, newPost.lng]);
     setShowPostPanel(false);
@@ -442,7 +575,7 @@ export default function MapPage() {
   async function handleLike(postId) {
     const updated = await likePost(postId);
     if (!updated) return;
-    setPosts((current) => current.map((post) => (post._id === postId ? updated : post)));
+    setPosts((current) => current.map((post) => (post._id === postId ? stripPostMediaForList(updated) : post)));
     await refreshProfile().catch(() => null);
   }
 
@@ -450,7 +583,7 @@ export default function MapPage() {
     const text = commentText !== null ? commentText.trim() : (commentDrafts[postId] || "").trim();
     if (!text) return;
     const updated = await commentPost(postId, text);
-    setPosts((current) => current.map((post) => (post._id === postId ? updated : post)));
+    setPosts((current) => current.map((post) => (post._id === postId ? stripPostMediaForList(updated) : post)));
     if (commentText === null) {
       setCommentDrafts((current) => ({ ...current, [postId]: "" }));
     }
@@ -464,7 +597,7 @@ export default function MapPage() {
         setPosts((current) => current.filter((post) => post._id !== postId));
         setNotice("Bu paylasim yuksek sikayet nedeniyle yayindan kaldirildi.");
       } else {
-        setPosts((current) => current.map((post) => (post._id === postId ? updated : post)));
+        setPosts((current) => current.map((post) => (post._id === postId ? stripPostMediaForList(updated) : post)));
         setNotice("Sikayetiniz basariyla kaydedildi.");
       }
       await refreshProfile().catch(() => null);
@@ -506,21 +639,13 @@ export default function MapPage() {
         route={route}
         selectedPostId={selectedPostId}
         onBoundsChange={handleBoundsChange}
-        onSelectPost={(post) => {
-          setSelectedPostId(post._id);
-          setFocusLocation([post.lat, post.lng]);
-          const idx = visiblePosts.findIndex((p) => p._id === post._id);
-          setStoryViewerIndex(idx >= 0 ? idx : 0);
-          setStoryViewerList(visiblePosts);
-          setIsStoryOpen(true);
-        }}
-        onRoute={getRoute}
-        onLike={handleLike}
+        onSelectPost={openStoryAtPost}
         clickedCoords={clickedCoords}
         clickedAddress={clickedAddress}
         onMapClick={handleMapClick}
         onClearClickedCoords={() => setClickedCoords(null)}
         onShareHere={() => setShowPostPanel(true)}
+        heatmapEnabled={heatmapEnabled}
       />
 
       <header className="map-topbar">
@@ -534,7 +659,23 @@ export default function MapPage() {
             {user?.avatarName || "Profil"}
           </Link>
           <span className="status-pill">{locationStatus}</span>
-          <button type="button" className="ghost-button" onClick={loadPosts}>
+          <button
+            type="button"
+            className="ghost-button theme-toggle-button"
+            onClick={toggleTheme}
+            aria-pressed={isNight}
+          >
+            {isNight ? "Gece" : "Gunduz"}
+          </button>
+          <button
+            type="button"
+            className="ghost-button heatmap-toggle-button"
+            onClick={() => setHeatmapEnabled((current) => !current)}
+            aria-pressed={heatmapEnabled}
+          >
+            Isı
+          </button>
+          <button type="button" className="ghost-button" onClick={() => loadPosts({ force: true })}>
             Yenile
           </button>
           <button type="button" className="ghost-button" onClick={logout}>
@@ -686,14 +827,7 @@ export default function MapPage() {
                 <button
                   type="button"
                   className="memory-main"
-                  onClick={() => {
-                    setSelectedPostId(post._id);
-                    setFocusLocation([post.lat, post.lng]);
-                    const idx = visiblePosts.findIndex((p) => p._id === post._id);
-                    setStoryViewerIndex(idx >= 0 ? idx : 0);
-                    setStoryViewerList(visiblePosts);
-                    setIsStoryOpen(true);
-                  }}
+                  onClick={() => openStoryAtPost(post)}
                 >
                   <span className={`category-dot category-${post.category || "genel"}`} />
                   <span className="memory-item-body">
