@@ -693,6 +693,7 @@ export default function MapPage() {
         onClearClickedCoords={handleClearClickedCoords}
         onShareHere={handleOpenPostPanel}
         heatmapEnabled={heatmapEnabled}
+        mapTheme={isNight ? "night" : "day"}
       />
 
       <header className="map-topbar">
@@ -719,8 +720,10 @@ export default function MapPage() {
             className="ghost-button heatmap-toggle-button"
             onClick={() => setHeatmapEnabled((current) => !current)}
             aria-pressed={heatmapEnabled}
+            aria-label="Paylasim yogunlugu katmanini ac veya kapat"
+            title="Paylasim yogunlugu"
           >
-            Isı
+            Yogunluk
           </button>
           <button type="button" className="ghost-button" onClick={() => loadPosts({ force: true })}>
             Yenile

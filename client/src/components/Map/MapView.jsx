@@ -12,7 +12,14 @@ const INITIAL_MAP_ZOOM = 13;
 const ROUTE_PATH_OPTIONS = { color: "#18d2b8", weight: 6, opacity: 0.88 };
 const TILE_LAYER_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
-const TILE_LAYER_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const TILE_LAYERS = {
+  day: {
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+  },
+  night: {
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  },
+};
 
 function createMarkerIcon(category = "genel", selected = false, postType = "permanent") {
   const cacheKey = `${category}-${selected ? "selected" : "idle"}-${postType}`;
@@ -199,8 +206,10 @@ function MapView({
   onClearClickedCoords,
   onShareHere,
   heatmapEnabled = false,
+  mapTheme = "night",
 }) {
   const [currentZoom, setCurrentZoom] = useState(INITIAL_MAP_ZOOM);
+  const tileLayer = TILE_LAYERS[mapTheme] || TILE_LAYERS.night;
   const groupedPosts = useMemo(() => groupPosts(posts, currentZoom), [currentZoom, posts]);
   const heatmapPoints = useMemo(
     () =>
@@ -249,8 +258,9 @@ function MapView({
       <MapClickHandler onMapClick={onMapClick} />
       <RecenterMap location={focusLocation || location} />
       <TileLayer
+        key={mapTheme}
         attribution={TILE_LAYER_ATTRIBUTION}
-        url={TILE_LAYER_URL}
+        url={tileLayer.url}
         subdomains="abcd"
       />
       <HeatmapLayer
@@ -315,6 +325,7 @@ function areMapViewPropsEqual(prev, next) {
     sameLatLng(prev.clickedCoords, next.clickedCoords) &&
     prev.clickedAddress === next.clickedAddress &&
     prev.heatmapEnabled === next.heatmapEnabled &&
+    prev.mapTheme === next.mapTheme &&
     prev.onBoundsChange === next.onBoundsChange &&
     prev.onSelectPost === next.onSelectPost &&
     prev.onMapClick === next.onMapClick &&
@@ -330,7 +341,7 @@ function HeatmapLayer({ enabled, points, zoom }) {
 
   const drawHeatmap = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !enabled || points.length < 2) return;
+    if (!canvas || !enabled || points.length < 1) return;
 
     const size = map.getSize();
     const topLeft = map.containerPointToLayerPoint([0, 0]);
@@ -364,16 +375,16 @@ function HeatmapLayer({ enabled, points, zoom }) {
       cells.set(key, current);
     });
 
-    const radius = zoom <= 11 ? 58 : zoom <= 13 ? 46 : 34;
+    const radius = zoom <= 11 ? 66 : zoom <= 13 ? 54 : 40;
     Array.from(cells.values()).forEach((cell) => {
       const x = cell.x / cell.count;
       const y = cell.y / cell.count;
-      const intensity = Math.min(1, 0.28 + cell.weight / 4);
-      const auraRadius = radius + Math.min(18, cell.count * 2);
+      const intensity = Math.min(1, 0.36 + cell.weight / 3.2);
+      const auraRadius = radius + Math.min(22, cell.count * 2.4);
       const gradient = context.createRadialGradient(x, y, 0, x, y, auraRadius);
-      gradient.addColorStop(0, `rgba(242, 166, 90, ${0.18 * intensity})`);
-      gradient.addColorStop(0.38, `rgba(139, 92, 246, ${0.12 * intensity})`);
-      gradient.addColorStop(0.72, `rgba(26, 36, 64, ${0.075 * intensity})`);
+      gradient.addColorStop(0, `rgba(242, 166, 90, ${0.28 * intensity})`);
+      gradient.addColorStop(0.36, `rgba(139, 92, 246, ${0.18 * intensity})`);
+      gradient.addColorStop(0.72, `rgba(26, 36, 64, ${0.11 * intensity})`);
       gradient.addColorStop(1, "rgba(8, 11, 18, 0)");
 
       context.fillStyle = gradient;
@@ -391,7 +402,7 @@ function HeatmapLayer({ enabled, points, zoom }) {
   }, [drawHeatmap]);
 
   useEffect(() => {
-    if (!enabled || points.length < 2) return undefined;
+    if (!enabled || points.length < 1) return undefined;
 
     const canvas = document.createElement("canvas");
     canvas.className = "nh-heatmap-canvas";

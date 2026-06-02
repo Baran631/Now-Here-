@@ -1134,12 +1134,12 @@
   }
 
   .heatmap-toggle-button {
-    min-width: 52px;
+    min-width: 78px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0 10px;
-    font-size: 13px;
+    padding: 0 9px;
+    font-size: 12px;
   }
 
   .profile-chip {
@@ -1353,8 +1353,14 @@
   position: absolute;
   z-index: 360;
   pointer-events: none;
-  opacity: 0.68;
+  opacity: 0.86;
   mix-blend-mode: screen;
+}
+
+:root:not([data-theme="night"]) .nh-heatmap-canvas,
+[data-theme="day"] .nh-heatmap-canvas {
+  opacity: 0.74;
+  mix-blend-mode: multiply;
 }
 
 .map-topbar {
