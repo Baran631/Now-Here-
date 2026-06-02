@@ -10,14 +10,24 @@
   --bg-panel: rgba(255, 255, 255, 0.88);
   --bg-panel-strong: rgba(255, 255, 255, 0.95);
   --bg-field: rgba(8, 11, 18, 0.06);
+  --bg-elevated: rgba(255, 255, 255, 0.96);
   --text-main: #111827;
   --text-muted: #5f6774;
   --accent-amber: #c77a2e;
   --accent-violet: #6d4ee8;
   --accent-cyan: #287f87;
   --border-soft: rgba(17, 24, 39, 0.12);
+  --border-ambient: rgba(199, 122, 46, 0.2);
   --shadow-soft: 0 12px 32px rgba(17, 24, 39, 0.14);
   --shadow-glow: 0 0 14px rgba(199, 122, 46, 0.1);
+  --shadow-panel: 0 14px 34px rgba(17, 24, 39, 0.16);
+  --panel-surface:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.9)),
+    var(--bg-panel);
+  --panel-surface-quiet:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.76)),
+    var(--bg-panel);
+  --city-line: rgba(199, 122, 46, 0.2);
   --map-atmosphere:
     linear-gradient(126deg, rgba(199, 122, 46, 0.08) 0 14%, transparent 15% 100%),
     linear-gradient(40deg, transparent 0 62%, rgba(109, 78, 232, 0.08) 63% 78%, transparent 79% 100%),
@@ -35,14 +45,24 @@
   --bg-panel: rgba(15, 19, 30, 0.82);
   --bg-panel-strong: rgba(11, 15, 24, 0.94);
   --bg-field: rgba(255, 255, 255, 0.07);
+  --bg-elevated: rgba(13, 18, 29, 0.96);
   --text-main: #f4f0e8;
   --text-muted: #9ca3af;
   --accent-amber: #f2a65a;
   --accent-violet: #8b5cf6;
   --accent-cyan: #45a7b3;
   --border-soft: rgba(255,255,255,0.08);
+  --border-ambient: rgba(242, 166, 90, 0.22);
   --shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.25);
   --shadow-glow: 0 0 14px rgba(242, 166, 90, 0.1), 0 0 12px rgba(139, 92, 246, 0.07);
+  --shadow-panel: 0 14px 34px rgba(0, 0, 0, 0.28);
+  --panel-surface:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)),
+    rgba(15, 19, 30, 0.84);
+  --panel-surface-quiet:
+    linear-gradient(145deg, rgba(242, 166, 90, 0.055), rgba(139, 92, 246, 0.045)),
+    rgba(12, 17, 27, 0.88);
+  --city-line: rgba(242, 166, 90, 0.2);
   --map-atmosphere:
     linear-gradient(126deg, rgba(242, 166, 90, 0.08) 0 14%, transparent 15% 100%),
     linear-gradient(40deg, transparent 0 62%, rgba(139, 92, 246, 0.08) 63% 78%, transparent 79% 100%),
@@ -56,14 +76,31 @@
 }
 
 .nh-panel {
-  background: var(--bg-panel);
+  background: var(--panel-surface);
   border: 1px solid var(--border-soft);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-panel);
 }
 
 .nh-glass {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+.nh-chip {
+  min-height: var(--tap-size);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 0 13px;
+  color: var(--text-main);
+  background: var(--panel-surface-quiet);
+}
+
+.nh-focus-ring:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 3px;
 }
 
 * {
@@ -141,6 +178,7 @@ svg {
   height: 100%;
   font-family: inherit;
   -webkit-tap-highlight-color: transparent;
+  background: var(--bg-main);
 }
 
 .leaflet-control-attribution {

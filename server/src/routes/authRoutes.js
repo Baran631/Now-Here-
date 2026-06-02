@@ -240,6 +240,7 @@ function normalizePost(post) {
     image: source.image || "",
     video: source.video || "",
     postType: source.postType || "permanent",
+    expiresAt: source.expiresAt || null,
     likes: Number(source.likes) || 0,
     likedBy: source.likedBy || [],
     reportCount: Number(source.reportCount) || reportedBy.length || 0,
@@ -251,9 +252,10 @@ function normalizePost(post) {
 
 function isActiveProfilePost(post) {
   const hours24 = 24 * 60 * 60 * 1000;
-  const isExpiredStory =
-    post.postType === "story" &&
-    new Date(post.createdAt).getTime() < Date.now() - hours24;
+  const storyExpiresAt = post.expiresAt
+    ? new Date(post.expiresAt).getTime()
+    : new Date(post.createdAt).getTime() + hours24;
+  const isExpiredStory = post.postType === "story" && storyExpiresAt <= Date.now();
   const isHiddenByReports = (Number(post.reportCount) || 0) >= 3;
   return !isExpiredStory && !isHiddenByReports;
 }
@@ -261,7 +263,8 @@ function isActiveProfilePost(post) {
 async function getAllPosts() {
   if (!usesDatabase()) return memoryPosts.map(normalizePost).filter(isActiveProfilePost);
 
-  const hours24Ago = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const hours24Ago = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const posts = await Post.find({
     $and: [
       {
@@ -274,7 +277,9 @@ async function getAllPosts() {
         $or: [
           { postType: { $exists: false } },
           { postType: { $ne: "story" } },
-          { postType: "story", createdAt: { $gt: hours24Ago } },
+          { postType: "story", expiresAt: { $gt: now } },
+          { postType: "story", expiresAt: { $exists: false }, createdAt: { $gt: hours24Ago } },
+          { postType: "story", expiresAt: null, createdAt: { $gt: hours24Ago } },
         ],
       },
     ],

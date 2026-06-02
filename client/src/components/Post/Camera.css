@@ -104,22 +104,31 @@
     min-height: calc(104px + var(--safe-bottom));
     gap: 20px;
     padding: 18px 14px calc(18px + var(--safe-bottom));
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.66));
   }
 
   .camera-secondary {
     min-width: 88px;
     min-height: 46px;
     padding: 0 14px;
+    touch-action: manipulation;
   }
 
   .camera-shutter {
     width: 72px;
     height: 72px;
+    box-shadow: inset 0 0 0 7px #020303, 0 0 0 3px rgba(255, 255, 255, 0.86);
+    touch-action: manipulation;
   }
 
   .camera-error {
     width: calc(100% - 28px - var(--safe-left) - var(--safe-right));
     padding: 22px 18px;
+  }
+
+  .camera-error button {
+    min-height: 44px;
+    touch-action: manipulation;
   }
 }
 

@@ -46,7 +46,7 @@ const MIN_TRACKED_ROUTE_METERS = 25;
 const BOUNDS_EPSILON = 0.00005;
 const BOUNDS_DEBOUNCE_MS = 180;
 const POSTS_INITIAL_LIMIT = 100;
-const POSTS_WINDOW_HOURS = 24;
+const STORY_TTL_MS = 24 * 60 * 60 * 1000;
 
 function formatDistance(meters) {
   if (!meters) return "";
@@ -119,11 +119,29 @@ function stripPostMediaForList(post) {
   };
 }
 
+function getPostExpiresAt(post) {
+  if (!post || post.postType !== "story") return null;
+  const explicitExpiry = post.expiresAt ? new Date(post.expiresAt).getTime() : NaN;
+  if (Number.isFinite(explicitExpiry)) return explicitExpiry;
+
+  const createdAt = new Date(post.createdAt || 0).getTime();
+  return Number.isFinite(createdAt) ? createdAt + STORY_TTL_MS : 0;
+}
+
+function isActivePost(post, now = Date.now()) {
+  if (!post?._id) return false;
+  if (post.postType !== "story") return true;
+  const expiresAt = getPostExpiresAt(post);
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
 function normalizePostList(posts = []) {
   const seen = new Set();
+  const now = Date.now();
   return posts
     .filter((post) => {
       if (!post?._id || seen.has(post._id)) return false;
+      if (!isActivePost(post, now)) return false;
       seen.add(post._id);
       return true;
     })
@@ -157,7 +175,6 @@ function mergeUniquePosts(current = [], incoming = []) {
 
 function postQueryForBounds(bounds) {
   return {
-    hours: POSTS_WINDOW_HOURS,
     limit: POSTS_INITIAL_LIMIT,
     ...(bounds ? { bounds } : {}),
   };
@@ -173,6 +190,7 @@ export default function MapPage() {
   const pendingMapBoundsRef = useRef(null);
   const boundsDebounceRef = useRef(null);
   const postsFetchAbortRef = useRef(null);
+  const expirySweepRef = useRef(null);
   const lastPostQueryKeyRef = useRef("");
   const [location, setLocation] = useState(DEFAULT_LOCATION);
   const [focusLocation, setFocusLocation] = useState(DEFAULT_LOCATION);
@@ -224,6 +242,7 @@ export default function MapPage() {
     const feedText = normalizeText(feedQuery);
 
     return sortedPosts.filter((post) => {
+      if (!isActivePost(post)) return false;
       const lat = Number(post.lat);
       const lng = Number(post.lng);
       if (!pointInsideBounds(lat, lng, mapBounds)) return false;
@@ -276,9 +295,29 @@ export default function MapPage() {
       if (postsFetchAbortRef.current) {
         postsFetchAbortRef.current.abort();
       }
+      if (expirySweepRef.current) {
+        clearInterval(expirySweepRef.current);
+      }
     },
     []
   );
+
+  useEffect(() => {
+    expirySweepRef.current = setInterval(() => {
+      setPosts((current) => {
+        const active = normalizePostList(current);
+        return postsAreSame(current, active) ? current : active;
+      });
+      setStoryViewerList((current) => current.filter((post) => isActivePost(post)));
+    }, 60 * 1000);
+
+    return () => {
+      if (expirySweepRef.current) {
+        clearInterval(expirySweepRef.current);
+        expirySweepRef.current = null;
+      }
+    };
+  }, []);
 
   const loadPosts = useCallback(async ({ silent = false, bounds = mapBoundsRef.current, force = false } = {}) => {
     const query = postQueryForBounds(bounds);
@@ -544,7 +583,7 @@ export default function MapPage() {
     setNotice("Bolge filtresi temizlendi.");
   }
 
-  async function handleMapClick(coords) {
+  const handleMapClick = useCallback(async (coords) => {
     setClickedCoords(coords);
     setClickedAddress("Konum yukleniyor...");
     try {
@@ -558,7 +597,15 @@ export default function MapPage() {
     } catch {
       setClickedAddress("Secilen yer");
     }
-  }
+  }, []);
+
+  const handleClearClickedCoords = useCallback(() => {
+    setClickedCoords(null);
+  }, []);
+
+  const handleOpenPostPanel = useCallback(() => {
+    setShowPostPanel(true);
+  }, []);
 
   async function handleCreatePost(postData) {
     const newPost = await createPost(postData);
@@ -643,8 +690,8 @@ export default function MapPage() {
         clickedCoords={clickedCoords}
         clickedAddress={clickedAddress}
         onMapClick={handleMapClick}
-        onClearClickedCoords={() => setClickedCoords(null)}
-        onShareHere={() => setShowPostPanel(true)}
+        onClearClickedCoords={handleClearClickedCoords}
+        onShareHere={handleOpenPostPanel}
         heatmapEnabled={heatmapEnabled}
       />
 
@@ -937,7 +984,7 @@ export default function MapPage() {
         </section>
       )}
 
-      <button type="button" className="share-fab" onClick={() => setShowPostPanel(true)}>
+      <button type="button" className="share-fab" onClick={handleOpenPostPanel}>
         <span aria-hidden="true">+</span>
         <strong>Paylas</strong>
       </button>

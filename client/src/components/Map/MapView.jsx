@@ -8,6 +8,11 @@ const clusterIconCache = new Map();
 const CLUSTER_BREAK_ZOOM = 16;
 const HEATMAP_MAX_ZOOM = 15;
 const HEATMAP_GRID_SIZE = 34;
+const INITIAL_MAP_ZOOM = 13;
+const ROUTE_PATH_OPTIONS = { color: "#18d2b8", weight: 6, opacity: 0.88 };
+const TILE_LAYER_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const TILE_LAYER_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 
 function createMarkerIcon(category = "genel", selected = false, postType = "permanent") {
   const cacheKey = `${category}-${selected ? "selected" : "idle"}-${postType}`;
@@ -180,7 +185,7 @@ function MapClickHandler({ onMapClick }) {
   return null;
 }
 
-export default function MapView({
+function MapView({
   location,
   focusLocation,
   posts = [],
@@ -195,7 +200,7 @@ export default function MapView({
   onShareHere,
   heatmapEnabled = false,
 }) {
-  const [currentZoom, setCurrentZoom] = useState(13);
+  const [currentZoom, setCurrentZoom] = useState(INITIAL_MAP_ZOOM);
   const groupedPosts = useMemo(() => groupPosts(posts, currentZoom), [currentZoom, posts]);
   const heatmapPoints = useMemo(
     () =>
@@ -234,7 +239,7 @@ export default function MapView({
   return (
     <MapContainer
       center={location}
-      zoom={13}
+      zoom={INITIAL_MAP_ZOOM}
       zoomControl={false}
       className="map-canvas"
       preferCanvas
@@ -244,8 +249,9 @@ export default function MapView({
       <MapClickHandler onMapClick={onMapClick} />
       <RecenterMap location={focusLocation || location} />
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution={TILE_LAYER_ATTRIBUTION}
+        url={TILE_LAYER_URL}
+        subdomains="abcd"
       />
       <HeatmapLayer
         enabled={heatmapEnabled && currentZoom <= HEATMAP_MAX_ZOOM}
@@ -282,12 +288,38 @@ export default function MapView({
       {route?.positions && (
         <Polyline
           positions={route.positions}
-          pathOptions={{ color: "#18d2b8", weight: 6, opacity: 0.88 }}
+          pathOptions={ROUTE_PATH_OPTIONS}
         />
       )}
 
       {markerList}
     </MapContainer>
+  );
+}
+
+export default memo(MapView, areMapViewPropsEqual);
+
+function sameLatLng(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return Number(a[0]) === Number(b[0]) && Number(a[1]) === Number(b[1]);
+}
+
+function areMapViewPropsEqual(prev, next) {
+  return (
+    sameLatLng(prev.location, next.location) &&
+    sameLatLng(prev.focusLocation, next.focusLocation) &&
+    prev.posts === next.posts &&
+    prev.route === next.route &&
+    prev.selectedPostId === next.selectedPostId &&
+    sameLatLng(prev.clickedCoords, next.clickedCoords) &&
+    prev.clickedAddress === next.clickedAddress &&
+    prev.heatmapEnabled === next.heatmapEnabled &&
+    prev.onBoundsChange === next.onBoundsChange &&
+    prev.onSelectPost === next.onSelectPost &&
+    prev.onMapClick === next.onMapClick &&
+    prev.onClearClickedCoords === next.onClearClickedCoords &&
+    prev.onShareHere === next.onShareHere
   );
 }
 
@@ -339,9 +371,9 @@ function HeatmapLayer({ enabled, points, zoom }) {
       const intensity = Math.min(1, 0.28 + cell.weight / 4);
       const auraRadius = radius + Math.min(18, cell.count * 2);
       const gradient = context.createRadialGradient(x, y, 0, x, y, auraRadius);
-      gradient.addColorStop(0, `rgba(242, 166, 90, ${0.2 * intensity})`);
-      gradient.addColorStop(0.38, `rgba(139, 92, 246, ${0.13 * intensity})`);
-      gradient.addColorStop(0.74, `rgba(28, 35, 60, ${0.08 * intensity})`);
+      gradient.addColorStop(0, `rgba(242, 166, 90, ${0.18 * intensity})`);
+      gradient.addColorStop(0.38, `rgba(139, 92, 246, ${0.12 * intensity})`);
+      gradient.addColorStop(0.72, `rgba(26, 36, 64, ${0.075 * intensity})`);
       gradient.addColorStop(1, "rgba(8, 11, 18, 0)");
 
       context.fillStyle = gradient;

@@ -87,6 +87,11 @@ const PostSchema = new mongoose.Schema(
       default: "permanent",
       index: true,
     },
+    expiresAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     reportedBy: {
       type: [String],
       default: [],
@@ -138,6 +143,7 @@ const PostSchema = new mongoose.Schema(
 PostSchema.index({ createdAt: -1 });
 PostSchema.index({ createdAt: -1, lat: 1, lng: 1 });
 PostSchema.index({ lat: 1, lng: 1, createdAt: -1 });
+PostSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { expiresAt: { $type: "date" } } });
 PostSchema.index({ placeName: "text", description: "text", tags: "text", authorName: "text" });
 
 module.exports = mongoose.model("Post", PostSchema);

@@ -9,6 +9,12 @@ const DEFAULT_POST_LIMIT = 100;
 const MAX_POST_LIMIT = 200;
 const DEFAULT_POST_HOURS = 24;
 
+function getDefaultStoryExpiresAt(createdAt = Date.now()) {
+  const createdTime = new Date(createdAt).getTime();
+  const baseTime = Number.isFinite(createdTime) ? createdTime : Date.now();
+  return new Date(baseTime + DEFAULT_POST_HOURS * 60 * 60 * 1000);
+}
+
 function usesDatabase() {
   return mongoose.connection.readyState === 1;
 }
@@ -50,6 +56,7 @@ function normalizePost(post, viewerId = "", options = {}) {
     video: includeVideo ? source.video || "" : "",
     hasVideo: Boolean(source.hasVideo ?? source.video),
     postType: source.postType || "permanent",
+    expiresAt: source.expiresAt || (source.postType === "story" ? getDefaultStoryExpiresAt(source.createdAt) : null),
     category: source.category || "genel",
     mood: source.mood || "calm",
     rating: Number(source.rating) || 0,
@@ -163,6 +170,7 @@ function parseSinceDate(query) {
   const parsedSince = since ? new Date(since) : null;
   if (parsedSince && !Number.isNaN(parsedSince.getTime())) return parsedSince;
 
+  if (query.hours === undefined) return null;
   const hours = Math.max(1, Math.min(24 * 30, Number(query.hours) || DEFAULT_POST_HOURS));
   return new Date(Date.now() - hours * 60 * 60 * 1000);
 }
@@ -194,6 +202,35 @@ function pointInsideBounds(lat, lng, bounds) {
   return insideLat && insideLng;
 }
 
+function isActivePost(post, now = Date.now()) {
+  if (!post || (post.reportCount || 0) >= 3) return false;
+  if ((post.postType || "permanent") !== "story") return true;
+
+  const expiresAt = post.expiresAt ? new Date(post.expiresAt).getTime() : getDefaultStoryExpiresAt(post.createdAt).getTime();
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+function activePostMongoFilter(now = new Date()) {
+  const storyCreatedAfter = new Date(now.getTime() - DEFAULT_POST_HOURS * 60 * 60 * 1000);
+  return {
+    $or: [
+      { postType: { $exists: false } },
+      { postType: { $ne: "story" } },
+      { postType: "story", expiresAt: { $gt: now } },
+      {
+        postType: "story",
+        expiresAt: { $exists: false },
+        createdAt: { $gt: storyCreatedAfter },
+      },
+      {
+        postType: "story",
+        expiresAt: null,
+        createdAt: { $gt: storyCreatedAfter },
+      },
+    ],
+  };
+}
+
 exports.getPosts = async (req, res) => {
   try {
     const includeMedia = ["1", "true", "yes"].includes(String(req.query.includeMedia || "").toLowerCase());
@@ -201,16 +238,13 @@ exports.getPosts = async (req, res) => {
     const sinceDate = parseSinceDate(req.query);
     const beforeDate = parseBeforeDate(req.query);
     const bounds = parseBounds(req.query);
+    const now = new Date();
 
     if (!usesDatabase()) {
       const activePosts = memoryPosts.filter((post) => {
         const createdAt = new Date(post.createdAt);
-        const isExpiredStory =
-          post.postType === "story" &&
-          createdAt.getTime() < Date.now() - DEFAULT_POST_HOURS * 60 * 60 * 1000;
-        const isSpam = (post.reportCount || 0) >= 3;
-        const isInWindow = createdAt >= sinceDate && (!beforeDate || createdAt < beforeDate);
-        return !isExpiredStory && !isSpam && isInWindow;
+        const isInWindow = (!sinceDate || createdAt >= sinceDate) && (!beforeDate || createdAt < beforeDate);
+        return isActivePost(post, now.getTime()) && isInWindow;
       });
 
       const posts = activePosts
@@ -233,14 +267,18 @@ exports.getPosts = async (req, res) => {
             { reportCount: { $lt: 3 } },
           ],
         },
-        {
-          createdAt: {
-            $gte: sinceDate,
-            ...(beforeDate ? { $lt: beforeDate } : {}),
-          },
-        },
+        activePostMongoFilter(now),
       ],
     };
+
+    if (sinceDate || beforeDate) {
+      mongoFilter.$and.push({
+        createdAt: {
+          ...(sinceDate ? { $gte: sinceDate } : {}),
+          ...(beforeDate ? { $lt: beforeDate } : {}),
+        },
+      });
+    }
 
     if (bounds) {
       mongoFilter.lat = { $gte: bounds.south, $lte: bounds.north };
@@ -304,12 +342,12 @@ exports.getPost = async (req, res) => {
   try {
     if (!usesDatabase()) {
       const post = memoryPosts.find((item) => item._id === req.params.id);
-      if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+      if (!post || !isActivePost(post)) return res.status(404).json({ message: "Post bulunamadi" });
       return res.json(normalizePost(post, req.user?.id));
     }
 
     const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+    if (!post || !isActivePost(post)) return res.status(404).json({ message: "Post bulunamadi" });
     return res.json(normalizePost(post, req.user?.id));
   } catch (err) {
     console.error("getPost hata:", err);
@@ -362,6 +400,10 @@ exports.createPost = async (req, res) => {
       comments: [],
     };
 
+    if (payload.postType === "story") {
+      payload.expiresAt = getDefaultStoryExpiresAt();
+    }
+
     if (!usesDatabase()) {
       const now = new Date().toISOString();
       const post = {
@@ -386,7 +428,7 @@ exports.likePost = async (req, res) => {
   try {
     if (!usesDatabase()) {
       const post = memoryPosts.find((item) => item._id === req.params.id);
-      if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+      if (!post || !isActivePost(post)) return res.status(404).json({ message: "Post bulunamadi" });
 
       const likedBy = post.likedBy || [];
       const liked = likedBy.includes(req.user.id);
@@ -397,7 +439,7 @@ exports.likePost = async (req, res) => {
     }
 
     const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+    if (!post || !isActivePost(post)) return res.status(404).json({ message: "Post bulunamadi" });
 
     const liked = post.likedBy.includes(req.user.id);
     if (liked) {
@@ -436,14 +478,14 @@ exports.commentPost = async (req, res) => {
 
     if (!usesDatabase()) {
       const post = memoryPosts.find((item) => item._id === req.params.id);
-      if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+      if (!post || !isActivePost(post)) return res.status(404).json({ message: "Post bulunamadi" });
       post.comments = [...(post.comments || []), comment];
       post.updatedAt = new Date().toISOString();
       return res.status(201).json(normalizePost(post, req.user.id));
     }
 
     const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+    if (!post || !isActivePost(post)) return res.status(404).json({ message: "Post bulunamadi" });
     post.comments.push(comment);
     await post.save();
     return res.status(201).json(normalizePost(post, req.user.id));
@@ -459,7 +501,7 @@ exports.reportPost = async (req, res) => {
 
     if (!usesDatabase()) {
       const post = memoryPosts.find((item) => item._id === req.params.id);
-      if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+      if (!post || !isActivePost(post)) return res.status(404).json({ message: "Post bulunamadi" });
 
       const reportedBy = post.reportedBy || [];
       if (reportedBy.includes(userId)) {
@@ -473,7 +515,7 @@ exports.reportPost = async (req, res) => {
     }
 
     const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: "Post bulunamadi" });
+    if (!post || !isActivePost(post)) return res.status(404).json({ message: "Post bulunamadi" });
 
     if (post.reportedBy.includes(userId)) {
       return res.status(400).json({ message: "Bu paylasimi zaten sikayet ettiniz." });

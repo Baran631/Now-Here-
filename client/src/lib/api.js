@@ -260,15 +260,19 @@ export async function fetchPosts(params = {}) {
     return Array.isArray(posts) ? posts : [];
   } catch (err) {
     if (err?.name === "AbortError") throw err;
-    const now = Date.now();
     const hours = Number(params.hours) || 24;
-    const sinceMs = params.since ? new Date(params.since).getTime() : now - hours * 60 * 60 * 1000;
+    const sinceMs =
+      params.since || params.hours !== undefined
+        ? new Date(params.since || Date.now() - hours * 60 * 60 * 1000).getTime()
+        : null;
     const beforeMs = params.before ? new Date(params.before).getTime() : Infinity;
     const limit = Math.max(1, Math.min(200, Number(params.limit) || 100));
     return getLocalPosts()
       .filter((post) => {
         const createdAt = new Date(post.createdAt || 0).getTime();
-        if (createdAt < sinceMs || createdAt >= beforeMs) return false;
+        const isExpiredStory =
+          post.postType === "story" && createdAt < Date.now() - 24 * 60 * 60 * 1000;
+        if (isExpiredStory || (sinceMs && createdAt < sinceMs) || createdAt >= beforeMs) return false;
         if (!params.bounds) return true;
 
         const lat = Number(post.lat);

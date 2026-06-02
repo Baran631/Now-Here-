@@ -342,6 +342,40 @@
 }
 
 @media (max-width: 760px) {
+  .post-overlay {
+    background: rgba(0, 0, 0, 0.58);
+  }
+
+  .post-panel {
+    width: 100%;
+    max-height: calc(100dvh - var(--safe-top));
+    padding: 18px 16px calc(18px + var(--safe-bottom));
+    background: #0c1215;
+    box-shadow: 0 -8px 22px rgba(0, 0, 0, 0.28);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    contain: layout paint;
+  }
+
+  .post-panel::before {
+    height: 3px;
+    margin-inline: -16px;
+  }
+
+  .post-panel-header h2 {
+    font-size: 22px;
+    line-height: 1.15;
+  }
+
+  .icon-close,
+  .post-form button,
+  .post-form input,
+  .post-form textarea,
+  .post-form select {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
   .post-overlay,
   .post-panel,
   .post-submit::after,
