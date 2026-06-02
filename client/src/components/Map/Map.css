@@ -903,10 +903,12 @@
 
 .memory-marker-dot {
   display: block;
-  width: 18px;
-  height: 18px;
-  border: 3px solid rgba(244, 240, 232, 0.92);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32);
+  width: 19px;
+  height: 19px;
+  border: 3px solid rgba(244, 240, 232, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(8, 11, 18, 0.18),
+    0 6px 16px rgba(0, 0, 0, 0.32);
   transform: scale(1);
   transition: transform 160ms ease;
 }
@@ -949,12 +951,13 @@
 [data-theme="day"] .cluster-marker span {
   color: #111827;
   background:
-    radial-gradient(circle at 36% 28%, rgba(199, 122, 46, 0.14), transparent 34%),
-    rgba(255, 255, 255, 0.92);
-  border-color: rgba(199, 122, 46, 0.32);
+    radial-gradient(circle at 36% 28%, rgba(199, 122, 46, 0.2), transparent 34%),
+    rgba(255, 255, 255, 0.96);
+  border-color: rgba(17, 24, 39, 0.28);
   box-shadow:
-    0 0 0 1px rgba(109, 78, 232, 0.08),
-    0 6px 16px rgba(17, 24, 39, 0.18);
+    0 0 0 2px rgba(255, 255, 255, 0.86),
+    0 0 0 3px rgba(17, 24, 39, 0.14),
+    0 7px 18px rgba(17, 24, 39, 0.22);
 }
 
 :root:not([data-theme="night"]) .memory-marker-dot,
@@ -962,7 +965,36 @@
 :root:not([data-theme="night"]) .clicked-location-marker span,
 [data-theme="day"] .clicked-location-marker span {
   border-color: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 5px 14px rgba(17, 24, 39, 0.18);
+  box-shadow:
+    0 0 0 2px rgba(17, 24, 39, 0.28),
+    0 6px 16px rgba(17, 24, 39, 0.24);
+}
+
+:root:not([data-theme="night"]) .memory-marker-dot.category-genel,
+[data-theme="day"] .memory-marker-dot.category-genel,
+:root:not([data-theme="night"]) .memory-marker-dot.category-diger,
+[data-theme="day"] .memory-marker-dot.category-diger {
+  background: #2563eb;
+}
+
+:root:not([data-theme="night"]) .memory-marker-dot.category-kafe,
+[data-theme="day"] .memory-marker-dot.category-kafe {
+  background: #d97706;
+}
+
+:root:not([data-theme="night"]) .memory-marker-dot.category-doga,
+[data-theme="day"] .memory-marker-dot.category-doga {
+  background: #059669;
+}
+
+:root:not([data-theme="night"]) .memory-marker-dot.category-sanat,
+[data-theme="day"] .memory-marker-dot.category-sanat {
+  background: #7c3aed;
+}
+
+:root:not([data-theme="night"]) .memory-marker-dot.category-spor,
+[data-theme="day"] .memory-marker-dot.category-spor {
+  background: #0891b2;
 }
 
 :root:not([data-theme="night"]) .map-brand,
