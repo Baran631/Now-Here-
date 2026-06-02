@@ -1,13 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, Polyline, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import { CustomZoom, RecenterMap } from "./MapUtils";
 
 const markerIconCache = new Map();
 const clusterIconCache = new Map();
 const CLUSTER_BREAK_ZOOM = 16;
-const HEATMAP_MAX_ZOOM = 15;
-const HEATMAP_GRID_SIZE = 34;
 const INITIAL_MAP_ZOOM = 13;
 const ROUTE_PATH_OPTIONS = { color: "#18d2b8", weight: 6, opacity: 0.88 };
 const TILE_LAYER_ATTRIBUTION =
@@ -205,24 +203,11 @@ function MapView({
   onMapClick,
   onClearClickedCoords,
   onShareHere,
-  heatmapEnabled = false,
   mapTheme = "night",
 }) {
   const [currentZoom, setCurrentZoom] = useState(INITIAL_MAP_ZOOM);
   const tileLayer = TILE_LAYERS[mapTheme] || TILE_LAYERS.night;
   const groupedPosts = useMemo(() => groupPosts(posts, currentZoom), [currentZoom, posts]);
-  const heatmapPoints = useMemo(
-    () =>
-      posts
-        .map((post) => ({
-          id: post._id,
-          lat: Number(post.lat),
-          lng: Number(post.lng),
-          weight: Math.max(0.35, Math.min(1, (Number(post.rating) || 3) / 5)),
-        }))
-        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)),
-    [posts]
-  );
   const markerList = useMemo(
     () =>
       groupedPosts.map((group) =>
@@ -263,12 +248,6 @@ function MapView({
         url={tileLayer.url}
         subdomains="abcd"
       />
-      <HeatmapLayer
-        enabled={heatmapEnabled && currentZoom <= HEATMAP_MAX_ZOOM}
-        points={heatmapPoints}
-        zoom={currentZoom}
-      />
-
       <Marker position={location} icon={userIcon}>
         <Popup>Bulunduğun nokta</Popup>
       </Marker>
@@ -324,7 +303,6 @@ function areMapViewPropsEqual(prev, next) {
     prev.selectedPostId === next.selectedPostId &&
     sameLatLng(prev.clickedCoords, next.clickedCoords) &&
     prev.clickedAddress === next.clickedAddress &&
-    prev.heatmapEnabled === next.heatmapEnabled &&
     prev.mapTheme === next.mapTheme &&
     prev.onBoundsChange === next.onBoundsChange &&
     prev.onSelectPost === next.onSelectPost &&
@@ -332,100 +310,6 @@ function areMapViewPropsEqual(prev, next) {
     prev.onClearClickedCoords === next.onClearClickedCoords &&
     prev.onShareHere === next.onShareHere
   );
-}
-
-function HeatmapLayer({ enabled, points, zoom }) {
-  const map = useMap();
-  const canvasRef = useRef(null);
-  const frameRef = useRef(null);
-
-  const drawHeatmap = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !enabled || points.length < 1) return;
-
-    const size = map.getSize();
-    const topLeft = map.containerPointToLayerPoint([0, 0]);
-    L.DomUtil.setPosition(canvas, topLeft);
-
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.max(1, Math.round(size.x * pixelRatio));
-    canvas.height = Math.max(1, Math.round(size.y * pixelRatio));
-    canvas.style.width = `${size.x}px`;
-    canvas.style.height = `${size.y}px`;
-
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-    context.clearRect(0, 0, size.x, size.y);
-    context.globalCompositeOperation = "lighter";
-
-    const cells = new Map();
-    points.forEach((point) => {
-      const layerPoint = map.latLngToLayerPoint([point.lat, point.lng]).subtract(topLeft);
-      if (layerPoint.x < -80 || layerPoint.y < -80 || layerPoint.x > size.x + 80 || layerPoint.y > size.y + 80) {
-        return;
-      }
-
-      const key = `${Math.round(layerPoint.x / HEATMAP_GRID_SIZE)},${Math.round(layerPoint.y / HEATMAP_GRID_SIZE)}`;
-      const current = cells.get(key) || { x: 0, y: 0, weight: 0, count: 0 };
-      current.x += layerPoint.x;
-      current.y += layerPoint.y;
-      current.weight += point.weight;
-      current.count += 1;
-      cells.set(key, current);
-    });
-
-    const radius = zoom <= 11 ? 66 : zoom <= 13 ? 54 : 40;
-    Array.from(cells.values()).forEach((cell) => {
-      const x = cell.x / cell.count;
-      const y = cell.y / cell.count;
-      const intensity = Math.min(1, 0.36 + cell.weight / 3.2);
-      const auraRadius = radius + Math.min(22, cell.count * 2.4);
-      const gradient = context.createRadialGradient(x, y, 0, x, y, auraRadius);
-      gradient.addColorStop(0, `rgba(242, 166, 90, ${0.28 * intensity})`);
-      gradient.addColorStop(0.36, `rgba(139, 92, 246, ${0.18 * intensity})`);
-      gradient.addColorStop(0.72, `rgba(26, 36, 64, ${0.11 * intensity})`);
-      gradient.addColorStop(1, "rgba(8, 11, 18, 0)");
-
-      context.fillStyle = gradient;
-      context.beginPath();
-      context.arc(x, y, auraRadius, 0, Math.PI * 2);
-      context.fill();
-    });
-
-    context.globalCompositeOperation = "source-over";
-  }, [enabled, map, points, zoom]);
-
-  const scheduleDraw = useCallback(() => {
-    if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    frameRef.current = requestAnimationFrame(drawHeatmap);
-  }, [drawHeatmap]);
-
-  useEffect(() => {
-    if (!enabled || points.length < 1) return undefined;
-
-    const canvas = document.createElement("canvas");
-    canvas.className = "nh-heatmap-canvas";
-    canvasRef.current = canvas;
-    map.getPanes().overlayPane.appendChild(canvas);
-    scheduleDraw();
-
-    map.on("moveend zoomend resize", scheduleDraw);
-    return () => {
-      map.off("moveend zoomend resize", scheduleDraw);
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
-      canvas.remove();
-      canvasRef.current = null;
-    };
-  }, [enabled, map, points.length, scheduleDraw]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    scheduleDraw();
-  }, [enabled, points, scheduleDraw, zoom]);
-
-  return null;
 }
 
 function BoundsReporter({ onBoundsChange, onZoomChange }) {

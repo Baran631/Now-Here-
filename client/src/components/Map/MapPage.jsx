@@ -226,7 +226,6 @@ export default function MapPage() {
   const [isStoryOpen, setIsStoryOpen] = useState(false);
   const [storyViewerIndex, setStoryViewerIndex] = useState(0);
   const [storyViewerList, setStoryViewerList] = useState([]);
-  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
 
   const sortedPosts = useMemo(
     () =>
@@ -692,7 +691,6 @@ export default function MapPage() {
         onMapClick={handleMapClick}
         onClearClickedCoords={handleClearClickedCoords}
         onShareHere={handleOpenPostPanel}
-        heatmapEnabled={heatmapEnabled}
         mapTheme={isNight ? "night" : "day"}
       />
 
@@ -714,16 +712,6 @@ export default function MapPage() {
             aria-pressed={isNight}
           >
             {isNight ? "Gece" : "Gunduz"}
-          </button>
-          <button
-            type="button"
-            className="ghost-button heatmap-toggle-button"
-            onClick={() => setHeatmapEnabled((current) => !current)}
-            aria-pressed={heatmapEnabled}
-            aria-label="Paylasim yogunlugu katmanini ac veya kapat"
-            title="Paylasim yogunlugu"
-          >
-            Yogunluk
           </button>
           <button type="button" className="ghost-button" onClick={() => loadPosts({ force: true })}>
             Yenile
