@@ -1483,6 +1483,16 @@
     display: none;
   }
 
+  .theme-toggle-button {
+    min-width: 64px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
   .mobile-map-tabs {
     position: absolute;
     z-index: 820;

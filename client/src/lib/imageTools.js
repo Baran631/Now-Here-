@@ -1,6 +1,8 @@
 function resizeImageSource(source, options = {}) {
   const maxSize = options.maxSize || 512;
   const quality = options.quality || 0.82;
+  const minQuality = options.minQuality || 0.58;
+  const maxBytes = options.maxBytes || 0;
 
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -23,7 +25,15 @@ function resizeImageSource(source, options = {}) {
       canvas.width = width;
       canvas.height = height;
       context.drawImage(image, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", quality));
+      let nextQuality = quality;
+      let dataUrl = canvas.toDataURL("image/jpeg", nextQuality);
+
+      while (maxBytes && base64PayloadBytes(dataUrl) > maxBytes && nextQuality > minQuality) {
+        nextQuality = Math.max(minQuality, nextQuality - 0.06);
+        dataUrl = canvas.toDataURL("image/jpeg", nextQuality);
+      }
+
+      resolve(dataUrl);
     };
 
     image.onerror = () => {
@@ -33,6 +43,12 @@ function resizeImageSource(source, options = {}) {
 
     image.src = objectUrl || source;
   });
+}
+
+function base64PayloadBytes(value = "") {
+  const commaIndex = value.indexOf(",");
+  const payload = commaIndex >= 0 ? value.slice(commaIndex + 1) : value;
+  return Math.ceil((payload.length * 3) / 4);
 }
 
 export function prepareProfilePhoto(file, options = {}) {
@@ -55,12 +71,16 @@ export function preparePostImage(source, options = {}) {
 
 export async function preparePostImageSet(source, options = {}) {
   const image = await resizeImageSource(source, {
-    maxSize: options.maxSize || 1080,
-    quality: options.quality || 0.72,
+    maxSize: options.maxSize || 1280,
+    quality: options.quality || 0.84,
+    minQuality: options.minQuality || 0.64,
+    maxBytes: options.maxBytes || 850 * 1024,
   });
   const imageThumbnail = await resizeImageSource(source, {
-    maxSize: options.thumbnailMaxSize || 360,
-    quality: options.thumbnailQuality || 0.62,
+    maxSize: options.thumbnailMaxSize || 480,
+    quality: options.thumbnailQuality || 0.72,
+    minQuality: options.thumbnailMinQuality || 0.58,
+    maxBytes: options.thumbnailMaxBytes || 110 * 1024,
   });
 
   return { image, imageThumbnail };

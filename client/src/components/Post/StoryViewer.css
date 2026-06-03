@@ -248,6 +248,7 @@
 
 .story-media-element.image {
   background: #020507;
+  object-fit: cover;
 }
 
 .story-media-element.video {

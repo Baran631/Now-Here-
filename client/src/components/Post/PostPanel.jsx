@@ -386,7 +386,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
           {/* Media Previews */}
           {image && (
             <figure className="image-preview">
-              <img src={imageThumbnail || image} alt="Paylasim onizlemesi" loading="lazy" decoding="async" />
+              <img src={image} alt="Paylasim onizlemesi" loading="eager" decoding="async" />
               <button type="button" onClick={() => {
                 setImage("");
                 setImageThumbnail("");

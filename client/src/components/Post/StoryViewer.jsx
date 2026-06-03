@@ -438,7 +438,8 @@ export default function StoryViewer({
             <img
               src={activeStory.image || activeStory.imageThumbnail || "/placeholder-memory.jpg"}
               alt="Anı fotoğrafı"
-              loading="lazy"
+              loading="eager"
+              fetchPriority="high"
               decoding="async"
               className="story-media-element image"
             />
