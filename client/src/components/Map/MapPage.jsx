@@ -716,8 +716,10 @@ export default function MapPage() {
             className="ghost-button theme-toggle-button"
             onClick={toggleTheme}
             aria-pressed={isNight}
+            aria-label={isNight ? "Gunduz moduna gec" : "Gece moduna gec"}
+            title={isNight ? "Gunduz" : "Gece"}
           >
-            {isNight ? "Gece" : "Gunduz"}
+            <span className={`theme-toggle-icon ${isNight ? "is-night" : "is-day"}`} aria-hidden="true" />
           </button>
           <button type="button" className="ghost-button" onClick={() => loadPosts({ force: true })}>
             Yenile

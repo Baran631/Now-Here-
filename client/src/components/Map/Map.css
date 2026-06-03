@@ -132,7 +132,49 @@
 }
 
 .theme-toggle-button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  display: inline-grid;
+  place-items: center;
   border-color: rgba(242, 166, 90, 0.24);
+  border-radius: 50%;
+  padding: 0;
+}
+
+.theme-toggle-icon {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: block;
+  border-radius: 50%;
+  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.theme-toggle-icon.is-night {
+  background: #f4f0e8;
+  box-shadow:
+    inset -6px -2px 0 #182031,
+    0 0 0 5px rgba(139, 92, 246, 0.08);
+}
+
+.theme-toggle-icon.is-day {
+  background: var(--accent-amber);
+  box-shadow:
+    0 -10px 0 -7px var(--accent-amber),
+    0 10px 0 -7px var(--accent-amber),
+    10px 0 0 -7px var(--accent-amber),
+    -10px 0 0 -7px var(--accent-amber),
+    7px 7px 0 -7px var(--accent-amber),
+    -7px 7px 0 -7px var(--accent-amber),
+    7px -7px 0 -7px var(--accent-amber),
+    -7px -7px 0 -7px var(--accent-amber),
+    0 0 0 5px rgba(242, 166, 90, 0.1);
+}
+
+.theme-toggle-button:hover .theme-toggle-icon {
+  transform: rotate(12deg) scale(1.04);
 }
 
 .map-search {
@@ -1186,12 +1228,12 @@
   }
 
   .theme-toggle-button {
-    min-width: 68px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 10px;
-    font-size: 13px;
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    display: inline-grid;
+    padding: 0;
   }
 
   .profile-chip {
@@ -1484,13 +1526,12 @@
   }
 
   .theme-toggle-button {
-    min-width: 64px;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 10px;
-    font-size: 12px;
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    display: inline-grid;
+    padding: 0;
   }
 
   .mobile-map-tabs {
