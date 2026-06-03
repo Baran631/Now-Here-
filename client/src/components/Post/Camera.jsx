@@ -11,6 +11,9 @@ const cameraModes = {
     facingMode: { ideal: "user" },
   },
 };
+const MAX_RECORDING_SECONDS = 8;
+const VIDEO_BITS_PER_SECOND = 420000;
+const AUDIO_BITS_PER_SECOND = 48000;
 
 export default function Camera({ onCapture, onClose }) {
   const videoRef = useRef(null);
@@ -40,7 +43,7 @@ export default function Camera({ onCapture, onClose }) {
 
   const startCamera = useCallback(async (nextMode, nextCaptureMode) => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError("Bu tarayici kamera erisimini desteklemiyor.");
+      setError("Bu tarayıcı kamera erişimini desteklemiyor.");
       return;
     }
 
@@ -50,13 +53,15 @@ export default function Camera({ onCapture, onClose }) {
     stopStream();
 
     try {
+      const isVideoMode = nextCaptureMode === "video";
       const constraints = {
         video: {
           facingMode: cameraModes[nextMode].facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: isVideoMode ? 640 : 1280 },
+          height: { ideal: isVideoMode ? 360 : 720 },
+          frameRate: { ideal: isVideoMode ? 24 : 30, max: isVideoMode ? 24 : 30 },
         },
-        audio: nextCaptureMode === "video",
+        audio: isVideoMode,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -68,14 +73,15 @@ export default function Camera({ onCapture, onClose }) {
       }
       setReady(true);
     } catch (err) {
-      console.error("Kamera baslatilamadi:", err);
+      console.error("Kamera başlatılamadı:", err);
       if (nextCaptureMode === "video") {
         try {
           const constraintsNoAudio = {
             video: {
               facingMode: cameraModes[nextMode].facingMode,
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
+              width: { ideal: 640 },
+              height: { ideal: 360 },
+              frameRate: { ideal: 24, max: 24 },
             },
             audio: false,
           };
@@ -87,10 +93,10 @@ export default function Camera({ onCapture, onClose }) {
           }
           setReady(true);
         } catch (innerErr) {
-          setError(innerErr.message || "Kamera acilamadi.");
+          setError(innerErr.message || "Kamera açılamadı.");
         }
       } else {
-        setError(err.message || "Kamera acilamadi.");
+        setError(err.message || "Kamera açılamadı.");
       }
     } finally {
       setSwitching(false);
@@ -130,7 +136,7 @@ export default function Camera({ onCapture, onClose }) {
     const video = videoRef.current;
 
     if (!canvas || !video || !video.videoWidth) {
-      setError("Kamera goruntusu henuz hazir degil.");
+      setError("Kamera görüntüsü henüz hazır değil.");
       return;
     }
 
@@ -166,7 +172,11 @@ export default function Camera({ onCapture, onClose }) {
     }
 
     try {
-      const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
+      const mediaRecorder = new MediaRecorder(streamRef.current, {
+        mimeType,
+        videoBitsPerSecond: VIDEO_BITS_PER_SECOND,
+        audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
+      });
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -193,16 +203,16 @@ export default function Camera({ onCapture, onClose }) {
 
       timerRef.current = setInterval(() => {
         setRecordingSeconds((prev) => {
-          if (prev >= 29) {
+          if (prev >= MAX_RECORDING_SECONDS - 1) {
             stopRecording();
-            return 30;
+            return MAX_RECORDING_SECONDS;
           }
           return prev + 1;
         });
       }, 1000);
     } catch (err) {
-      console.error("Kayit baslatilamadi:", err);
-      setError("Video kaydi baslatilamadi: " + err.message);
+      console.error("Kayıt başlatılamadı:", err);
+      setError("Video kaydı başlatılamadı: " + err.message);
     }
   };
 
@@ -234,7 +244,7 @@ export default function Camera({ onCapture, onClose }) {
     <div className="camera-screen">
       {error ? (
         <div className="camera-error">
-          <strong>Kamera kullanilamiyor</strong>
+          <strong>Kamera kullanılamıyor</strong>
           <p>{error}</p>
           <button type="button" onClick={closeCamera}>
             Kapat
@@ -253,15 +263,15 @@ export default function Camera({ onCapture, onClose }) {
 
           <div className="camera-hud" aria-live="polite">
             <span className="camera-mode-indicator">
-              {cameraModes[mode].label} · {captureMode === "photo" ? "FOTOGRAF" : "VIDEO"}
+              {cameraModes[mode].label} · {captureMode === "photo" ? "FOTOĞRAF" : "VİDEO"}
             </span>
             {isRecording ? (
               <small className="recording-indicator">
                 <span className="red-dot"></span>
-                {`00:${recordingSeconds < 10 ? "0" + recordingSeconds : recordingSeconds} / 00:30`}
+                {`00:${recordingSeconds < 10 ? "0" + recordingSeconds : recordingSeconds} / 00:08`}
               </small>
             ) : (
-              <small>{switching ? "Kamera degistiriliyor..." : captureMode === "photo" ? "Fotograf cekmek icin bas" : "30sn video kaydi icin bas"}</small>
+              <small>{switching ? "Kamera değiştiriliyor..." : captureMode === "photo" ? "Fotoğraf çekmek için bas" : "8sn video kaydı için bas"}</small>
             )}
           </div>
 
@@ -272,7 +282,7 @@ export default function Camera({ onCapture, onClose }) {
               onClick={() => handleModeChange("photo")}
               disabled={isRecording}
             >
-              Fotograf
+              Fotoğraf
             </button>
             <button
               type="button"
@@ -286,14 +296,14 @@ export default function Camera({ onCapture, onClose }) {
 
           <div className="camera-controls">
             <button type="button" className="camera-secondary" onClick={closeCamera} disabled={isRecording}>
-              Vazgec
+              Vazgeç
             </button>
             <button
               type="button"
               className={`camera-shutter ${captureMode === "video" ? "is-video-mode" : ""} ${isRecording ? "is-recording" : ""}`}
               onClick={handleShutterClick}
               disabled={!ready || switching}
-              aria-label={captureMode === "photo" ? "Fotograf cek" : isRecording ? "Kaydi durdur" : "Kaydi baslat"}
+              aria-label={captureMode === "photo" ? "Fotoğraf çek" : isRecording ? "Kaydı durdur" : "Kaydı başlat"}
             />
             <button
               type="button"
@@ -301,7 +311,7 @@ export default function Camera({ onCapture, onClose }) {
               onClick={switchCamera}
               disabled={switching || isRecording}
             >
-              Cevir
+              Çevir
             </button>
           </div>
         </>

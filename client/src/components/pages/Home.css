@@ -1,5 +1,16 @@
 .home-page {
   min-height: 100%;
+  --text-main: #f7f5ed;
+  --text-muted: rgba(247, 245, 237, 0.68);
+  --accent-amber: #ffc857;
+  --accent-violet: #8b5cf6;
+  --border-soft: rgba(255, 255, 255, 0.12);
+  --action-primary: linear-gradient(135deg, #ffc857, #b7ff4a);
+  --action-primary-text: #06100e;
+  --action-secondary-bg: rgba(255, 255, 255, 0.075);
+  --action-secondary-border: rgba(255, 255, 255, 0.14);
+  --action-secondary-text: #f7f5ed;
+  --action-shadow: 0 10px 24px rgba(255, 200, 87, 0.16);
   color: #f7f5ed;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 48%),

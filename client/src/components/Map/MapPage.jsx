@@ -27,12 +27,12 @@ const categoryLabels = {
   genel: "Genel",
   diger: "Genel",
   kafe: "Kafe",
-  doga: "Doga",
+  doga: "Doğa",
   etkinlik: "Etkinlik",
   spor: "Spor",
   sanat: "Sanat",
   yemek: "Yemek",
-  alisveris: "Alisveris",
+  alisveris: "Alışveriş",
 };
 
 const categoryLegend = Object.entries(categoryLabels).filter(([key]) => key !== "diger");
@@ -196,7 +196,7 @@ export default function MapPage() {
   const [location, setLocation] = useState(DEFAULT_LOCATION);
   const [focusLocation, setFocusLocation] = useState(DEFAULT_LOCATION);
   const [locationStatus, setLocationStatus] = useState(
-    geolocationSupported ? "Konum hazirlaniyor" : "Varsayilan konum kullaniliyor"
+    geolocationSupported ? "Konum hazırlanıyor" : "Varsayılan konum kullanılıyor"
   );
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(true);
@@ -269,11 +269,11 @@ export default function MapPage() {
           const nextLocation = [position.coords.latitude, position.coords.longitude];
           setLocation(nextLocation);
           setFocusLocation(nextLocation);
-          setLocationStatus("Canli konum hazir");
+          setLocationStatus("Canlı konum hazır");
         },
         () => {
           if (!alive) return;
-          setLocationStatus("Konum izni yok. Varsayilan konum kullaniliyor.");
+          setLocationStatus("Konum izni yok. Varsayılan konum kullanılıyor.");
         },
         { enableHighAccuracy: true, timeout: 9000 }
       );
@@ -341,7 +341,7 @@ export default function MapPage() {
       });
     } catch (err) {
       if (!controller.signal.aborted) {
-        setNotice(err.message || "Paylasimlar yuklenemedi.");
+        setNotice(err.message || "Paylaşımlar yüklenemedi.");
       }
     } finally {
       if (postsFetchAbortRef.current === controller) {
@@ -414,10 +414,10 @@ export default function MapPage() {
       const results = await searchPlaces(value);
       setSuggestions(results);
       if (!results.length) {
-        setNotice("Sonuc bulunamadi. Daha genel bir mekan veya ilce adi deneyebilirsin.");
+        setNotice("Sonuç bulunamadı. Daha genel bir mekan veya ilçe adı deneyebilirsin.");
       }
     } catch (err) {
-      setNotice(err.message || "Arama servisine ulasilamadi.");
+      setNotice(err.message || "Arama servisine ulaşılamadı.");
       setSuggestions([]);
     } finally {
       setSearchLoading(false);
@@ -429,7 +429,7 @@ export default function MapPage() {
     setSearch(place.display_name);
     setSuggestions([]);
     setFocusLocation(nextLocation);
-    setNotice("Harita aradigin noktaya odaklandi.");
+    setNotice("Harita aradığın noktaya odaklandı.");
     setMobilePanel("feed");
   }
 
@@ -449,7 +449,7 @@ export default function MapPage() {
 
     if (!geolocationSupported) {
       setRouteProgress({ active: false, trackedMeters: 0, points: 0, accuracy: 0 });
-      setNotice("Cihaz konumu desteklenmedigi icin rota mesafesi profile islenmeyecek.");
+      setNotice("Cihaz konumu desteklenmediği için rota mesafesi profile işlenmeyecek.");
       return false;
     }
 
@@ -481,7 +481,7 @@ export default function MapPage() {
         });
       },
       () => {
-        setLocationStatus("Rota takibi icin konum izni gerekiyor.");
+        setLocationStatus("Rota takibi için konum izni gerekiyor.");
       },
       { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
     );
@@ -501,7 +501,7 @@ export default function MapPage() {
 
       setRoute({ positions: currentRoute.positions, targetId: target._id || target.place_id });
       setRouteInfo({
-        title: target.placeName || target.display_name || "Secili konum",
+        title: target.placeName || target.display_name || "Seçili konum",
         distance: formatDistance(currentRoute.distance),
         duration: formatDuration(currentRoute.duration),
         distanceMeters: currentRoute.distance,
@@ -515,11 +515,11 @@ export default function MapPage() {
       setMobilePanel("route");
       setNotice(
         trackingStarted
-          ? "Rota baslatildi. Profil mesafesi sadece gercek GPS hareketinden yazilacak."
-          : "Rota acildi fakat GPS takibi baslatilamadi."
+          ? "Rota başlatıldı. Profil mesafesi sadece gerçek GPS hareketinden yazılacak."
+          : "Rota açıldı fakat GPS takibi başlatılamadı."
       );
     } catch (err) {
-      setNotice(err.message || "Rota hesaplarken bir sorun olustu.");
+      setNotice(err.message || "Rota hesaplarken bir sorun oluştu.");
     }
   }
 
@@ -531,10 +531,10 @@ export default function MapPage() {
     if (meters >= MIN_TRACKED_ROUTE_METERS) {
       await recordRouteDistance(meters).catch(() => null);
       await refreshProfile().catch(() => null);
-      setNotice(`${formatDistance(meters)} gercek hareket profile islendi.`);
+      setNotice(`${formatDistance(meters)} gerçek hareket profile işlendi.`);
       setMobilePanel("feed");
     } else {
-      setNotice("Gercek hareket algilanmadigi icin rota mesafesi profile eklenmedi.");
+      setNotice("Gerçek hareket algılanmadığı için rota mesafesi profile eklenmedi.");
     }
     setMobilePanel("feed");
   }
@@ -543,7 +543,7 @@ export default function MapPage() {
     stopRouteTracking();
     setRoute(null);
     setRouteInfo(null);
-    setNotice("Yol tarifi kapatildi.");
+    setNotice("Yol tarifi kapatıldı.");
     setMobilePanel("feed");
   }
 
@@ -552,7 +552,7 @@ export default function MapPage() {
     const query = regionQuery.trim();
     if (query.length < 2) {
       setRegionFilter(null);
-      setNotice("Bolge filtresi temizlendi.");
+      setNotice("Bölge filtresi temizlendi.");
       return;
     }
 
@@ -562,7 +562,7 @@ export default function MapPage() {
       const selected = results[0];
       if (!selected) {
         setRegionFilter({ label: query, bounds: null });
-        setNotice("Harita bolgesi bulunamadi, paylasim metinlerinde arama yapiliyor.");
+        setNotice("Harita bölgesi bulunamadı, paylaşım metinlerinde arama yapılıyor.");
         return;
       }
 
@@ -574,9 +574,9 @@ export default function MapPage() {
         bounds,
       });
       setFocusLocation(nextLocation);
-      setNotice(`${query} bolgesi icin paylasimlar filtrelendi.`);
+      setNotice(`${query} bölgesi için paylaşımlar filtrelendi.`);
     } catch (err) {
-      setNotice(err.message || "Bolge filtresi uygulanamadi.");
+      setNotice(err.message || "Bölge filtresi uygulanamadı.");
     } finally {
       setRegionLoading(false);
     }
@@ -585,22 +585,22 @@ export default function MapPage() {
   function clearRegionFilter() {
     setRegionFilter(null);
     setRegionQuery("");
-    setNotice("Bolge filtresi temizlendi.");
+    setNotice("Bölge filtresi temizlendi.");
   }
 
   const handleMapClick = useCallback(async (coords) => {
     setClickedCoords(coords);
-    setClickedAddress("Konum yukleniyor...");
+    setClickedAddress("Konum yükleniyor...");
     try {
       const result = await reverseGeocode(coords[0], coords[1]);
       if (result && result.display_name) {
         const shortName = result.display_name.split(",")[0] || result.display_name;
         setClickedAddress(shortName);
       } else {
-        setClickedAddress("Secilen yer");
+        setClickedAddress("Seçilen yer");
       }
     } catch {
-      setClickedAddress("Secilen yer");
+      setClickedAddress("Seçilen yer");
     }
   }, []);
 
@@ -619,7 +619,7 @@ export default function MapPage() {
     setFocusLocation([newPost.lat, newPost.lng]);
     setShowPostPanel(false);
     setClickedCoords(null);
-    setNotice("Paylasim haritaya eklendi.");
+    setNotice("Paylaşım haritaya eklendi.");
     setMobilePanel("feed");
     await refreshProfile().catch(() => null);
   }
@@ -647,14 +647,14 @@ export default function MapPage() {
       const updated = await reportPost(postId);
       if (updated.reportCount >= 3) {
         setPosts((current) => current.filter((post) => post._id !== postId));
-        setNotice("Bu paylasim yuksek sikayet nedeniyle yayindan kaldirildi.");
+        setNotice("Bu paylaşım yüksek şikayet nedeniyle yayından kaldırıldı.");
       } else {
         setPosts((current) => current.map((post) => (post._id === postId ? stripPostMediaForList(updated) : post)));
-        setNotice("Sikayetiniz basariyla kaydedildi.");
+        setNotice("Şikayetiniz başarıyla kaydedildi.");
       }
       await refreshProfile().catch(() => null);
     } catch (err) {
-      setNotice(err.message || "Sikayet iletilemedi.");
+      setNotice(err.message || "Şikayet iletilemedi.");
     }
   }
 
@@ -716,8 +716,8 @@ export default function MapPage() {
             className="ghost-button theme-toggle-button"
             onClick={toggleTheme}
             aria-pressed={isNight}
-            aria-label={isNight ? "Gunduz moduna gec" : "Gece moduna gec"}
-            title={isNight ? "Gunduz" : "Gece"}
+            aria-label={isNight ? "Gündüz moduna geç" : "Gece moduna geç"}
+            title={isNight ? "Gündüz" : "Gece"}
           >
             <span className={`theme-toggle-icon ${isNight ? "is-night" : "is-day"}`} aria-hidden="true" />
           </button>
@@ -725,7 +725,7 @@ export default function MapPage() {
             Yenile
           </button>
           <button type="button" className="ghost-button" onClick={logout}>
-            Cikis
+            Çıkış
           </button>
         </div>
       </header>
@@ -762,7 +762,7 @@ export default function MapPage() {
           aria-pressed={mobilePanel === "feed"}
           onClick={() => setMobilePanel("feed")}
         >
-          Akis <span>{visiblePosts.length}</span>
+          Akış <span>{visiblePosts.length}</span>
         </button>
         {routeInfo && (
           <button
@@ -776,11 +776,11 @@ export default function MapPage() {
         )}
       </nav>
 
-      <aside className={`memory-panel ${mobilePanel === "feed" ? "is-mobile-active" : ""}`} aria-label="Paylasim akisi">
+      <aside className={`memory-panel ${mobilePanel === "feed" ? "is-mobile-active" : ""}`} aria-label="Paylaşım akışı">
         <div className="memory-panel-header">
           <div>
-            <p className="panel-kicker">Canli akis</p>
-            <h1>Yakindaki anilar</h1>
+            <p className="panel-kicker">Canlı akış</p>
+            <h1>Yakındaki anılar</h1>
           </div>
           <span className="count-pill">{postsLoading ? "..." : visiblePosts.length}</span>
         </div>
@@ -788,13 +788,13 @@ export default function MapPage() {
         {notice && <p className="map-notice">{notice}</p>}
 
         <form className="region-filter" onSubmit={handleRegionFilter}>
-          <label htmlFor="region-filter-input">Bolgeye gore filtrele</label>
+          <label htmlFor="region-filter-input">Bölgeye göre filtrele</label>
           <div>
             <input
               id="region-filter-input"
               value={regionQuery}
               onChange={(event) => setRegionQuery(event.target.value)}
-              placeholder="Sehir, ilce veya bolge"
+              placeholder="Şehir, ilçe veya bölge"
             />
             <button type="submit" disabled={regionLoading}>
               {regionLoading ? "..." : "Filtrele"}
@@ -807,8 +807,8 @@ export default function MapPage() {
           )}
         </form>
 
-        <div className="feed-filter-card" aria-label="Akis filtreleri">
-          <label htmlFor="feed-query-input">Akis icinde ara</label>
+        <div className="feed-filter-card" aria-label="Akış filtreleri">
+          <label htmlFor="feed-query-input">Akış içinde ara</label>
           <input
             id="feed-query-input"
             value={feedQuery}
@@ -821,7 +821,7 @@ export default function MapPage() {
               className={activeCategory === "all" ? "is-selected" : ""}
               onClick={() => setActiveCategory("all")}
             >
-              Tumu
+              Tümü
             </button>
             {categoryLegend.map(([key, label]) => (
               <button
@@ -837,10 +837,10 @@ export default function MapPage() {
           </div>
         </div>
 
-        <div className="viewport-summary" aria-label="Gorunen alan ozeti">
+        <div className="viewport-summary" aria-label="Görünen alan özeti">
           <span>Ekrandaki alan</span>
           <strong>{visiblePosts.length}</strong>
-          <small>{sortedPosts.length} toplam paylasimdan su an gorunenler</small>
+          <small>{sortedPosts.length} toplam paylaşımdan şu an görünenler</small>
         </div>
 
         <div className="category-legend" aria-label="Kategori renkleri">
@@ -858,10 +858,10 @@ export default function MapPage() {
         </div>
 
         <div className="memory-list">
-          {postsLoading && <p className="empty-state">Paylasimlar yukleniyor...</p>}
+          {postsLoading && <p className="empty-state">Paylaşımlar yükleniyor...</p>}
 
           {!postsLoading && visiblePosts.length === 0 && (
-            <p className="empty-state">Ekranda gorunen alanda paylasim yok. Haritayi kaydir, uzaklas veya filtreyi temizle.</p>
+            <p className="empty-state">Ekranda görünen alanda paylaşım yok. Haritayı kaydır, uzaklaş veya filtreyi temizle.</p>
           )}
 
           {!postsLoading &&
@@ -881,9 +881,9 @@ export default function MapPage() {
                   <span className={`category-dot category-${post.category || "genel"}`} />
                   <span className="memory-item-body">
                     <strong>{post.placeName || "Konum"}</strong>
-                    <span>{post.description || "Fotografli paylasim"}</span>
+                    <span>{post.description || "Fotoğraflı paylaşım"}</span>
                     <small>
-                      {categoryLabels[post.category] || "Genel"} · {moodLabels[post.mood] || "Sakin"} · {post.rating || 0}/5 · {post.likes || 0} begeni · {getCommentCount(post)} yorum
+                      {categoryLabels[post.category] || "Genel"} · {moodLabels[post.mood] || "Sakin"} · {post.rating || 0}/5 · {post.likes || 0} beğeni · {getCommentCount(post)} yorum
                     </small>
                     {!!post.tags?.length && (
                       <small className="memory-tags">{post.tags.map((tag) => `#${tag}`).join(" ")}</small>
@@ -894,7 +894,7 @@ export default function MapPage() {
                 {selectedPostId === post._id && (
                   <div className="memory-actions">
                     <button type="button" onClick={() => handleLike(post._id)}>
-                      {post.viewerLiked ? "Begeniyi kaldir" : "Begen"}
+                      {post.viewerLiked ? "Beğeniyi kaldır" : "Beğen"}
                     </button>
                     <button type="button" onClick={() => getRoute(post)}>
                       Yol tarifi
@@ -919,7 +919,7 @@ export default function MapPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="comment-empty">Bu paylasima henuz yorum gelmemis.</p>
+                        <p className="comment-empty">Bu paylaşıma henüz yorum gelmemiş.</p>
                       )}
                     </div>
                     <div className="comment-row">
@@ -931,10 +931,10 @@ export default function MapPage() {
                             [post._id]: event.target.value,
                           }))
                         }
-                        placeholder="Kisa yorum yaz"
+                        placeholder="Kısa yorum yaz"
                       />
                       <button type="button" onClick={() => handleComment(post._id)}>
-                        Gonder
+                        Gönder
                       </button>
                     </div>
                   </div>
@@ -954,22 +954,22 @@ export default function MapPage() {
                 {routeInfo.distance} - {routeInfo.duration}
               </span>
             </div>
-            <button type="button" onClick={handleClearRoute} aria-label="Rotayi kapat">
+            <button type="button" onClick={handleClearRoute} aria-label="Rotayı kapat">
               x
             </button>
           </div>
           {routeInfo.steps[0] && (
             <div className="next-step-card">
-              <span>Siradaki hamle</span>
+              <span>Sıradaki hamle</span>
               <strong>{routeInfo.steps[0].instruction}</strong>
               <small>{formatDistance(routeInfo.steps[0].distance)}</small>
             </div>
           )}
           <div className="route-tracker-card">
-            <span>{routeProgress.active ? "GPS hareketi izleniyor" : "GPS takibi kapali"}</span>
-            <strong>{formatDistance(routeProgress.trackedMeters)} gercek hareket</strong>
+            <span>{routeProgress.active ? "GPS hareketi izleniyor" : "GPS takibi kapalı"}</span>
+            <strong>{formatDistance(routeProgress.trackedMeters)} gerçek hareket</strong>
             <small>
-              Profil mesafesi rota uzunlugundan degil, cihazdan algilanan hareketten yazilir.
+              Profil mesafesi rota uzunluğundan değil, cihazdan algılanan hareketten yazılır.
             </small>
           </div>
           <ol className="route-steps">
@@ -981,14 +981,14 @@ export default function MapPage() {
             ))}
           </ol>
           <button type="button" className="finish-route-button" onClick={handleFinishRoute}>
-            Rotayi bitir ve mesafeyi profile isle
+            Rotayı bitir ve mesafeyi profile işle
           </button>
         </section>
       )}
 
       <button type="button" className="share-fab" onClick={handleOpenPostPanel}>
         <span aria-hidden="true">+</span>
-        <strong>Paylas</strong>
+        <strong>Paylaş</strong>
       </button>
 
       {showPostPanel && (

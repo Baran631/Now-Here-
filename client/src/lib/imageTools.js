@@ -64,23 +64,25 @@ export function prepareProfilePhoto(file, options = {}) {
 
 export function preparePostImage(source, options = {}) {
   return resizeImageSource(source, {
-    maxSize: options.maxSize || 1280,
-    quality: options.quality || 0.78,
+    maxSize: options.maxSize || 960,
+    quality: options.quality || 0.76,
+    minQuality: options.minQuality || 0.5,
+    maxBytes: options.maxBytes || 420 * 1024,
   });
 }
 
 export async function preparePostImageSet(source, options = {}) {
   const image = await resizeImageSource(source, {
-    maxSize: options.maxSize || 1280,
-    quality: options.quality || 0.84,
-    minQuality: options.minQuality || 0.64,
-    maxBytes: options.maxBytes || 850 * 1024,
+    maxSize: options.maxSize || 960,
+    quality: options.quality || 0.78,
+    minQuality: options.minQuality || 0.5,
+    maxBytes: options.maxBytes || 420 * 1024,
   });
   const imageThumbnail = await resizeImageSource(source, {
-    maxSize: options.thumbnailMaxSize || 480,
-    quality: options.thumbnailQuality || 0.72,
-    minQuality: options.thumbnailMinQuality || 0.58,
-    maxBytes: options.thumbnailMaxBytes || 110 * 1024,
+    maxSize: options.thumbnailMaxSize || 360,
+    quality: options.thumbnailQuality || 0.66,
+    minQuality: options.thumbnailMinQuality || 0.48,
+    maxBytes: options.thumbnailMaxBytes || 56 * 1024,
   });
 
   return { image, imageThumbnail };

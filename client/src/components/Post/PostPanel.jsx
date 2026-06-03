@@ -4,15 +4,19 @@ import { searchPlaces } from "../../lib/api";
 import { preparePostImageSet } from "../../lib/imageTools";
 import "./PostPanel.css";
 
+const MAX_IMAGE_UPLOAD_BYTES = 12 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_BYTES = 1800 * 1024;
+const MAX_VIDEO_SECONDS = 8.5;
+
 const categories = [
   { value: "genel", label: "Genel" },
   { value: "kafe", label: "Kafe" },
-  { value: "doga", label: "Doga" },
+  { value: "doga", label: "Doğa" },
   { value: "etkinlik", label: "Etkinlik" },
   { value: "spor", label: "Spor" },
   { value: "sanat", label: "Sanat" },
   { value: "yemek", label: "Yemek" },
-  { value: "alisveris", label: "Alisveris" },
+  { value: "alisveris", label: "Alışveriş" },
 ];
 
 const moods = [
@@ -31,11 +35,21 @@ function parseTags(value) {
     .slice(0, 6);
 }
 
+function base64PayloadBytes(value = "") {
+  const commaIndex = value.indexOf(",");
+  const payload = commaIndex >= 0 ? value.slice(commaIndex + 1) : value;
+  return Math.ceil((payload.length * 3) / 4);
+}
+
+function isVideoPayloadTooLarge(value = "") {
+  return base64PayloadBytes(value) > MAX_VIDEO_UPLOAD_BYTES;
+}
+
 export default function PostPanel({ location, onSubmit, onClose }) {
   const videoObjectUrlRef = useRef("");
   const [form, setForm] = useState({
     description: "",
-    placeName: "Bulundugum nokta",
+    placeName: "Bulunduğum nokta",
     category: "genel",
     mood: "calm",
     rating: 4,
@@ -86,7 +100,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
       const results = await searchPlaces(val);
       setLocationSuggestions(results || []);
     } catch (err) {
-      console.error("Konum arama hatasi:", err);
+      console.error("Konum arama hatası:", err);
     } finally {
       setSearchLoading(false);
     }
@@ -114,8 +128,8 @@ export default function PostPanel({ location, onSubmit, onClose }) {
     setError("");
 
     if (file.type.startsWith("image/")) {
-      if (file.size > 4 * 1024 * 1024) {
-        setError("Gorsel 4 MB altinda olmali.");
+      if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+        setError("Görsel 12 MB altında olmalı. Büyük fotoğraflar otomatik küçültülür.");
         return;
       }
 
@@ -126,11 +140,11 @@ export default function PostPanel({ location, onSubmit, onClose }) {
         setVideo(""); // Clear video if image is chosen
         setError("");
       } catch {
-        setError("Gorsel hazirlanamadi.");
+        setError("Görsel hazırlanamadı.");
       }
     } else if (file.type.startsWith("video/")) {
-      if (file.size > 6 * 1024 * 1024) {
-        setError("Video 6 MB altinda olmali.");
+      if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
+        setError("Video şimdilik 1.8 MB altında olmalı. Base64 video siteyi çok yavaşlatıyor.");
         return;
       }
 
@@ -152,13 +166,18 @@ export default function PostPanel({ location, onSubmit, onClose }) {
       videoEl.preload = "metadata";
       videoEl.onloadedmetadata = () => {
         clearVideoObjectUrl();
-        if (videoEl.duration > 30.5) {
-          setError("Video 30 saniyeden uzun olamaz!");
+        if (videoEl.duration > MAX_VIDEO_SECONDS) {
+          setError("Video şimdilik en fazla 8 saniye olmalı.");
         } else {
           // Process file as base64
           const reader = new FileReader();
           reader.onload = () => {
-            setVideo(String(reader.result));
+            const nextVideo = String(reader.result);
+            if (isVideoPayloadTooLarge(nextVideo)) {
+              setError("Video sıkıştırılsa bile fazla büyük. Şimdilik daha kısa video yükle.");
+              return;
+            }
+            setVideo(nextVideo);
             setImage(""); // Clear image if video is chosen
             setImageThumbnail("");
           };
@@ -167,11 +186,11 @@ export default function PostPanel({ location, onSubmit, onClose }) {
       };
       videoEl.onerror = () => {
         clearVideoObjectUrl();
-        setError("Video okunamadi.");
+        setError("Video okunamadı.");
       };
       videoEl.src = objectUrl;
     } else {
-      setError("Lutfen gorsel veya video dosyasi sec.");
+      setError("Lütfen görsel veya video dosyası seç.");
     }
   }
 
@@ -179,7 +198,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
     event.preventDefault();
 
     if (!form.description.trim() && !image && !video) {
-      setError("Bir not yaz, fotograf veya video ekle.");
+      setError("Bir not yaz, fotoğraf veya video ekle.");
       return;
     }
 
@@ -202,18 +221,23 @@ export default function PostPanel({ location, onSubmit, onClose }) {
         lng: currentCoords[1],
       });
     } catch (err) {
-      setError(err.message || "Paylasim kaydedilemedi.");
+      setError(err.message || "Paylaşım kaydedilemedi.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="post-overlay" role="dialog" aria-modal="true" aria-label="Yeni paylasim">
+    <div className="post-overlay" role="dialog" aria-modal="true" aria-label="Yeni paylaşım">
       {showCamera && (
         <Camera
           onCapture={async (captured) => {
             if (captured.startsWith("data:video/")) {
+              if (isVideoPayloadTooLarge(captured)) {
+                setError("Video fazla büyük oldu. Şimdilik 8 saniyeden kısa ve sade video dene.");
+                setShowCamera(false);
+                return;
+              }
               setVideo(captured);
               setImage("");
               setImageThumbnail("");
@@ -225,7 +249,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
                 setVideo("");
                 setError("");
               } catch {
-                setError("Gorsel hazirlanamadi.");
+                setError("Görsel hazırlanamadı.");
               }
             }
             setShowCamera(false);
@@ -237,8 +261,8 @@ export default function PostPanel({ location, onSubmit, onClose }) {
       <section className="post-panel">
         <header className="post-panel-header">
           <div>
-            <p>Canli Harita</p>
-            <h2>Yeni ani ekle</h2>
+            <p>Canlı Harita</p>
+            <h2>Yeni anı ekle</h2>
           </div>
           <button type="button" className="icon-close" onClick={onClose} aria-label="Paneli kapat">
             ×
@@ -276,7 +300,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
                 id="panel-location-search"
                 value={locationSearch}
                 onChange={(e) => handleLocationSearch(e.target.value)}
-                placeholder="Mekan adi, cadde veya sehir ara... (Tıpkı Harita gibi)"
+                placeholder="Mekan adı, cadde veya şehir ara... (Tıpkı Harita gibi)"
                 autoComplete="off"
               />
               {searchLoading && <span className="search-spinner" />}
@@ -297,12 +321,12 @@ export default function PostPanel({ location, onSubmit, onClose }) {
 
           <div className="post-smart-grid">
             <label>
-              <span>Mekan adi</span>
+              <span>Mekan adı</span>
               <input
                 name="placeName"
                 value={form.placeName}
                 onChange={updateField}
-                placeholder="Ornek: Moda Sahil"
+                placeholder="Örnek: Moda Sahil"
                 maxLength={120}
               />
             </label>
@@ -353,7 +377,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
           </fieldset>
 
           <label className="rating-control">
-            <span>Yer puani: {form.rating}/5</span>
+            <span>Yer puanı: {form.rating}/5</span>
             <input name="rating" type="range" min="1" max="5" value={form.rating} onChange={updateField} />
           </label>
 
@@ -363,7 +387,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
               name="description"
               value={form.description}
               onChange={updateField}
-              placeholder="Burasi nasil bir yer? Kisa, net ve gercek bir izlenim yaz."
+              placeholder="Burası nasıl bir yer? Kısa, net ve gerçek bir izlenim yaz."
               maxLength={500}
               rows={4}
             />
@@ -376,7 +400,7 @@ export default function PostPanel({ location, onSubmit, onClose }) {
           </div>
 
           {!!tagPreview.length && (
-            <div className="tag-preview" aria-label="Etiket onizleme">
+            <div className="tag-preview" aria-label="Etiket önizleme">
               {tagPreview.map((tag) => (
                 <span key={tag}>#{tag}</span>
               ))}
@@ -386,12 +410,12 @@ export default function PostPanel({ location, onSubmit, onClose }) {
           {/* Media Previews */}
           {image && (
             <figure className="image-preview">
-              <img src={image} alt="Paylasim onizlemesi" loading="eager" decoding="async" />
+              <img src={image} alt="Paylaşım önizlemesi" loading="eager" decoding="async" />
               <button type="button" onClick={() => {
                 setImage("");
                 setImageThumbnail("");
               }}>
-                Gorseli kaldir
+                Görseli kaldır
               </button>
             </figure>
           )}
@@ -400,14 +424,14 @@ export default function PostPanel({ location, onSubmit, onClose }) {
             <figure className="image-preview video-preview-container">
               <video src={video} controls playsInline preload="metadata" className="video-preview-element" />
               <button type="button" onClick={() => setVideo("")}>
-                Videoyu kaldir
+                Videoyu kaldır
               </button>
             </figure>
           )}
 
           <div className="media-actions">
             <button type="button" className="soft-button" onClick={() => setShowCamera(true)}>
-              Kamera / On-Arka (Foto/Video)
+              Kamera / Ön-Arka (Foto/Video)
             </button>
             <label className="soft-button file-button">
               Galeri
@@ -416,10 +440,11 @@ export default function PostPanel({ location, onSubmit, onClose }) {
           </div>
 
           <button type="submit" className="post-submit" disabled={loading}>
-            {loading ? "Paylasiliyor..." : "Haritaya ekle"}
+            {loading ? "Paylaşılıyor..." : "Haritaya ekle"}
           </button>
         </form>
       </section>
     </div>
   );
 }
+

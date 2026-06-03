@@ -294,6 +294,10 @@ export async function fetchPost(postId) {
 
 function rememberPostDetail(postId, value) {
   if (!postId || !value) return value;
+  if (!(value instanceof Promise) && value.video) {
+    postDetailCache.delete(postId);
+    return value;
+  }
   postDetailCache.delete(postId);
   postDetailCache.set(postId, value);
 

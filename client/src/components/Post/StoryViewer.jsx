@@ -241,6 +241,8 @@ export default function StoryViewer({
     let alive = true;
     const idsToLoad = cachedStoryIds.filter((storyId) => {
       const story = storyList.find((item) => item?._id === storyId);
+      const isActiveStory = storyId === activeStoryId;
+      if (!isActiveStory && story?.hasVideo) return false;
       return storyId && story && !story.image && !story.video && !postDetailsRef.current[storyId];
     });
 
@@ -260,7 +262,7 @@ export default function StoryViewer({
     return () => {
       alive = false;
     };
-  }, [cachedStoryIds, currentIndex, storyList]);
+  }, [activeStoryId, cachedStoryIds, currentIndex, storyList]);
 
   useEffect(() => {
     function handleKeyDown(event) {

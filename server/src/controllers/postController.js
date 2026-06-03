@@ -8,6 +8,9 @@ const validMoods = new Set(["calm", "social", "focus", "energy", "view"]);
 const DEFAULT_POST_LIMIT = 100;
 const MAX_POST_LIMIT = 200;
 const DEFAULT_POST_HOURS = 24;
+const MAX_IMAGE_BYTES = 430 * 1024;
+const MAX_IMAGE_THUMBNAIL_BYTES = 64 * 1024;
+const MAX_VIDEO_BYTES = 2 * 1024 * 1024;
 
 function getDefaultStoryExpiresAt(createdAt = Date.now()) {
   const createdTime = new Date(createdAt).getTime();
@@ -96,16 +99,16 @@ function validatePostInput({ description = "", image = "", imageThumbnail = "", 
     return "Fotograf onizleme verisi gecersiz geldi.";
   }
 
-  if (image && base64PayloadBytes(image) > 900 * 1024) {
+  if (image && base64PayloadBytes(image) > MAX_IMAGE_BYTES) {
     return "Fotograf cok buyuk. Lutfen daha kucuk bir gorsel yukle.";
   }
 
-  if (imageThumbnail && base64PayloadBytes(imageThumbnail) > 120 * 1024) {
+  if (imageThumbnail && base64PayloadBytes(imageThumbnail) > MAX_IMAGE_THUMBNAIL_BYTES) {
     return "Fotograf onizlemesi cok buyuk. Lutfen daha kucuk bir gorsel yukle.";
   }
 
-  if (video && base64PayloadBytes(video) > 6 * 1024 * 1024) {
-    return "Video cok buyuk. Lutfen daha kisa veya daha dusuk boyutlu video yukle.";
+  if (video && base64PayloadBytes(video) > MAX_VIDEO_BYTES) {
+    return "Video cok buyuk. Simdilik daha kisa ve dusuk boyutlu video yukle.";
   }
 
   if (description.length > 500) {
