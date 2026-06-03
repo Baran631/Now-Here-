@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchPost } from "../../lib/api";
+import { fetchPostDetailCached } from "../../lib/api";
 import "./StoryViewer.css";
 
 const categoryLabels = {
@@ -44,13 +44,18 @@ function getCommentCount(post) {
 }
 
 function getStoryCacheIds(storyList, currentIndex) {
-  return storyList
-    .slice(
-      Math.max(0, currentIndex - STORY_DETAIL_PRELOAD_RADIUS),
-      Math.min(storyList.length, currentIndex + STORY_DETAIL_PRELOAD_RADIUS + 1)
-    )
-    .map((story) => story?._id)
-    .filter(Boolean);
+  const ids = [];
+  const activeId = storyList[currentIndex]?._id;
+  if (activeId) ids.push(activeId);
+
+  for (let offset = 1; offset <= STORY_DETAIL_PRELOAD_RADIUS; offset += 1) {
+    const previousId = storyList[currentIndex - offset]?._id;
+    const nextId = storyList[currentIndex + offset]?._id;
+    if (previousId) ids.push(previousId);
+    if (nextId) ids.push(nextId);
+  }
+
+  return ids;
 }
 
 function trimStoryDetailsCache(current, allowedIds) {
@@ -63,6 +68,46 @@ function releaseVideoElement(videoElement) {
   videoElement.pause();
   videoElement.removeAttribute("src");
   videoElement.load();
+}
+
+function useDecodedStoryImage(story) {
+  const thumbnailSrc = story?.imageThumbnail || "";
+  const fullSrc = story?.image || "";
+  const fallbackSrc = thumbnailSrc || "/placeholder-memory.jpg";
+  const [decodedFullSrc, setDecodedFullSrc] = useState("");
+  const isFullReady = !fullSrc || fullSrc === fallbackSrc || decodedFullSrc === fullSrc;
+  const displaySrc = isFullReady && fullSrc ? fullSrc : fallbackSrc;
+
+  useEffect(() => {
+    let alive = true;
+
+    if (!fullSrc || fullSrc === fallbackSrc || decodedFullSrc === fullSrc) {
+      return () => {
+        alive = false;
+      };
+    }
+
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => {
+      if (!alive) return;
+      const decodePromise = typeof image.decode === "function" ? image.decode().catch(() => null) : Promise.resolve();
+      decodePromise.then(() => {
+        if (!alive) return;
+        setDecodedFullSrc(fullSrc);
+      });
+    };
+    image.onerror = () => null;
+    image.src = fullSrc;
+
+    return () => {
+      alive = false;
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [decodedFullSrc, fallbackSrc, fullSrc]);
+
+  return { displaySrc, isFullReady };
 }
 
 export default function StoryViewer({
@@ -118,6 +163,7 @@ export default function StoryViewer({
   }, []);
 
   const hasVideo = activeStory && !!activeStory.video;
+  const storyImage = useDecodedStoryImage(hasVideo ? null : activeStory);
   const canDelete = Boolean(activeStory?.authorId && activeStory.authorId === currentUserId);
   const progress = progressState.index === currentIndex ? progressState.value : 0;
   const progressStories = useMemo(
@@ -199,7 +245,7 @@ export default function StoryViewer({
     });
 
     idsToLoad.forEach((storyId) => {
-      fetchPost(storyId)
+      fetchPostDetailCached(storyId)
         .then((post) => {
           if (!alive || !post) return;
           setPostDetails((current) => {
@@ -436,12 +482,12 @@ export default function StoryViewer({
             />
           ) : (
             <img
-              src={activeStory.image || activeStory.imageThumbnail || "/placeholder-memory.jpg"}
+              src={storyImage.displaySrc}
               alt="Anı fotoğrafı"
               loading="eager"
               fetchPriority="high"
               decoding="async"
-              className="story-media-element image"
+              className={`story-media-element image ${storyImage.isFullReady ? "is-full-ready" : "is-loading-full"}`}
             />
           )}
 

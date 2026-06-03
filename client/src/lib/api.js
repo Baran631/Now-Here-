@@ -6,6 +6,8 @@ const API_BASE_URL = (
 const LOCAL_POSTS_KEY = "now-here-local-posts";
 const LEGACY_LOCAL_USERS_KEY = "now-here-local-users";
 const MAX_AUTH_TOKEN_LENGTH = 2800;
+const MAX_POST_DETAIL_CACHE_SIZE = 8;
+const postDetailCache = new Map();
 
 const demoPosts = [
   {
@@ -288,6 +290,35 @@ export async function fetchPosts(params = {}) {
 
 export async function fetchPost(postId) {
   return request(`/api/posts/${postId}`);
+}
+
+function rememberPostDetail(postId, value) {
+  if (!postId || !value) return value;
+  postDetailCache.delete(postId);
+  postDetailCache.set(postId, value);
+
+  while (postDetailCache.size > MAX_POST_DETAIL_CACHE_SIZE) {
+    const oldestKey = postDetailCache.keys().next().value;
+    postDetailCache.delete(oldestKey);
+  }
+
+  return value;
+}
+
+export function fetchPostDetailCached(postId) {
+  if (!postId) return Promise.resolve(null);
+  const cached = postDetailCache.get(postId);
+  if (cached) return cached instanceof Promise ? cached : Promise.resolve(cached);
+
+  const requestPromise = fetchPost(postId)
+    .then((post) => rememberPostDetail(postId, post))
+    .catch((error) => {
+      postDetailCache.delete(postId);
+      throw error;
+    });
+
+  rememberPostDetail(postId, requestPromise);
+  return requestPromise;
 }
 
 export async function createPost(post) {

@@ -249,6 +249,17 @@
 .story-media-element.image {
   background: #020507;
   object-fit: contain;
+  transition: opacity 180ms ease, filter 180ms ease;
+}
+
+.story-media-element.image.is-loading-full {
+  opacity: 0.9;
+  filter: saturate(0.92);
+}
+
+.story-media-element.image.is-full-ready {
+  opacity: 1;
+  filter: none;
 }
 
 .story-media-element.video {

@@ -6,6 +6,7 @@ import {
   commentPost,
   createPost,
   deletePost,
+  fetchPostDetailCached,
   fetchPosts,
   fetchRoute,
   likePost,
@@ -392,6 +393,11 @@ export default function MapPage() {
     setStoryViewerList(visiblePosts);
     setIsStoryOpen(true);
   }, [visiblePosts]);
+
+  const prefetchStoryPost = useCallback((postId) => {
+    if (!postId) return;
+    fetchPostDetailCached(postId).catch(() => null);
+  }, []);
 
   async function handleSearchChange(value) {
     setSearch(value);
@@ -865,6 +871,9 @@ export default function MapPage() {
                 <button
                   type="button"
                   className="memory-main"
+                  onPointerEnter={() => prefetchStoryPost(post._id)}
+                  onFocus={() => prefetchStoryPost(post._id)}
+                  onTouchStart={() => prefetchStoryPost(post._id)}
                   onClick={() => openStoryAtPost(post)}
                 >
                   <span className={`category-dot category-${post.category || "genel"}`} />
