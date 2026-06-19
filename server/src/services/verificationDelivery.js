@@ -8,9 +8,9 @@ function isFilledSecret(value) {
 
 function getBrevoConfig() {
   return {
-    apiKey: process.env.BREVO_API_KEY || "",
-    fromEmail: process.env.BREVO_FROM_EMAIL || process.env.BREVO_SENDER_EMAIL || process.env.ADMIN_EMAIL || "",
-    fromName: process.env.BREVO_FROM_NAME || process.env.BREVO_SENDER_NAME || "NOW Here",
+    apiKey: String(process.env.BREVO_API_KEY || "").trim(),
+    fromEmail: String(process.env.BREVO_FROM_EMAIL || process.env.BREVO_SENDER_EMAIL || process.env.ADMIN_EMAIL || "").trim(),
+    fromName: String(process.env.BREVO_FROM_NAME || process.env.BREVO_SENDER_NAME || "NOW Here").trim(),
   };
 }
 
