@@ -1,5 +1,9 @@
-const memoryPosts = []
+const memoryUsers = [];
+const memoryPosts = [];
+const verificationCodes = new Map();
 
 module.exports = {
-  memoryPosts
-}
+  memoryUsers,
+  memoryPosts,
+  verificationCodes,
+};
