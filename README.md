@@ -64,6 +64,7 @@ PORT=5000
 MONGO_URI=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/now-here
 JWT_SECRET=change-this-long-random-secret
 CLIENT_ORIGINS=http://localhost:5173
+ADMIN_EMAILS=owner@example.com
 BREVO_API_KEY=
 BREVO_FROM_EMAIL=
 BREVO_FROM_NAME=NOW Here
@@ -85,6 +86,7 @@ Render env:
 MONGO_URI=...
 JWT_SECRET=...
 CLIENT_ORIGINS=https://your-vercel-app.vercel.app
+ADMIN_EMAILS=your-admin-email@example.com
 ```
 
 ### Vercel frontend

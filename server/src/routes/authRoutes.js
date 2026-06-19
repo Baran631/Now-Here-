@@ -6,7 +6,7 @@ const mongoose = require("mongoose");
 const User = require("../models/User");
 const Post = require("../models/Post");
 const { memoryUsers, memoryPosts, verificationCodes } = require("../data/memoryStore");
-const { requireAuth, normalizeAuthUser } = require("../middleware/auth");
+const { requireAuth, requireAdmin, normalizeAuthUser } = require("../middleware/auth");
 const { deliverVerificationCode } = require("../services/verificationDelivery");
 
 const router = express.Router();
@@ -287,6 +287,35 @@ async function getAllPosts() {
   return posts.map(normalizePost);
 }
 
+function publicAdminUser(user, postStats = {}) {
+  const currentUser = publicUser(user);
+  return {
+    ...currentUser,
+    postsCount: postStats.postsCount || 0,
+    receivedLikes: postStats.receivedLikes || 0,
+    commentsCount: postStats.commentsCount || 0,
+  };
+}
+
+function buildUserPostStats(posts = []) {
+  return posts.reduce((stats, post) => {
+    const authorId = String(post.authorId || "");
+    if (!authorId) return stats;
+
+    const current = stats[authorId] || {
+      postsCount: 0,
+      receivedLikes: 0,
+      commentsCount: 0,
+    };
+
+    current.postsCount += 1;
+    current.receivedLikes += Number(post.likes) || 0;
+    current.commentsCount += Array.isArray(post.comments) ? post.comments.length : 0;
+    stats[authorId] = current;
+    return stats;
+  }, {});
+}
+
 function normalizeInterestList(value) {
   const source = Array.isArray(value) ? value : String(value || "").split(",");
   return Array.from(
@@ -497,6 +526,31 @@ router.post("/recover-local", async (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   const posts = await getAllPosts();
   return res.json(buildProfile(req.user, posts));
+});
+
+router.get("/admin/users", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const posts = await getAllPosts();
+    const postStats = buildUserPostStats(posts);
+    const users = usesDatabase()
+      ? await User.find({}).sort({ createdAt: -1 }).lean()
+      : [...memoryUsers].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    return res.json({
+      users: users.map((user) => {
+        const id = String(user._id || user.id);
+        return publicAdminUser(user, postStats[id]);
+      }),
+      summary: {
+        totalUsers: users.length,
+        totalPosts: posts.length,
+        admins: users.filter((user) => publicUser(user).isAdmin).length,
+      },
+    });
+  } catch (err) {
+    console.error("admin users hata:", err);
+    return res.status(500).json({ message: "Kullanici listesi alinamadi." });
+  }
 });
 
 router.put("/me", requireAuth, async (req, res) => {

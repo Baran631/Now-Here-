@@ -163,6 +163,7 @@ export default function Profile() {
         </Link>
         <nav>
           <Link to="/map">Harita</Link>
+          {displayUser.isAdmin && <Link to="/admin">Admin</Link>}
           <button type="button" onClick={handleLogout}>
             Cikis
           </button>

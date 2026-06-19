@@ -234,6 +234,10 @@ export async function updateProfile(payload) {
   });
 }
 
+export async function fetchAdminUsers() {
+  return request("/api/auth/admin/users");
+}
+
 export async function recordRouteDistance(meters) {
   return request("/api/auth/me/distance", {
     method: "POST",
