@@ -19,6 +19,18 @@ function hasBrevoConfig() {
   return Boolean(isFilledSecret(config.apiKey) && isFilledSecret(config.fromEmail));
 }
 
+function getBrevoConfigStatus() {
+  const config = getBrevoConfig();
+  return {
+    hasApiKey: isFilledSecret(config.apiKey),
+    apiKeyLength: config.apiKey.length,
+    apiKeyStartsWithExpectedPrefix: config.apiKey.startsWith("xkeysib-"),
+    hasFromEmail: isFilledSecret(config.fromEmail),
+    fromEmail: config.fromEmail,
+    fromName: config.fromName,
+  };
+}
+
 function makeEmailText(code) {
   return [
     "NOW Here dogrulama kodun:",
@@ -127,4 +139,5 @@ async function deliverVerificationCode({ target, code }) {
 module.exports = {
   deliverVerificationCode,
   hasBrevoConfig,
+  getBrevoConfigStatus,
 };
